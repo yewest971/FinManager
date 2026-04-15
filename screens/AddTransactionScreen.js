@@ -9,6 +9,8 @@ import {
   ScrollView,
 } from "react-native";
 import { addTransaction, getCategories, getAccounts, initializeDefaultAccounts, addCategory } from "../services/firestoreService";
+import { savePendingTransaction } from "../services/localDatabase";
+import { isOnline, syncPendingTransactions } from "../services/syncService";
 
 export default function AddTransactionScreen({ navigation }) {
   const [note, setNote] = useState("");
@@ -97,16 +99,25 @@ export default function AddTransactionScreen({ navigation }) {
       return;
     }
 
-    try {
+      try {
       setLoading(true);
-      await addTransaction({
+
+      const transactionData = {
         title: note.trim() || "No note",
         amount: parseFloat(amount),
         type,
         category: category || "Uncategorised",
         account: account || "Cash",
         date: new Date().toISOString(),
-      });
+      };
+
+      const online = await isOnline();
+
+      if (online) {
+        await addTransaction(transactionData);
+      } else {
+        await savePendingTransaction(transactionData);
+      }
 
       setAmount("");
       setType(null);
@@ -115,9 +126,13 @@ export default function AddTransactionScreen({ navigation }) {
       setAccount(null);
       setError("");
 
-      Alert.alert("Success", "Transaction added!", [
-        { text: "OK", onPress: () => navigation.goBack() },
-      ]);
+      Alert.alert(
+        "Success",
+        online
+          ? "Transaction added!"
+          : "Saved offline — will sync when you're back online.",
+        [{ text: "OK", onPress: () => navigation.goBack() }]
+      );
     } catch (error) {
       setError("Failed to add transaction");
     } finally {
