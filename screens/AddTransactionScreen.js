@@ -22,6 +22,7 @@ export default function AddTransactionScreen({ navigation }) {
   const [account, setAccount] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [showAddCategory, setShowAddCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
   const [newCategoryIcon, setNewCategoryIcon] = useState("🛒");
@@ -68,6 +69,7 @@ export default function AddTransactionScreen({ navigation }) {
       setNewCategoryName("");
       setShowAddCategory(false);
       setError("");
+      setSuccess("");
       const catData = await getCategories();
       setCategories(catData);
       setCategory(newCategoryName.trim());
@@ -126,13 +128,15 @@ export default function AddTransactionScreen({ navigation }) {
       setAccount(null);
       setError("");
 
-      Alert.alert(
-        "Success",
-        online
-          ? "Transaction added!"
-          : "Saved offline — will sync when you're back online.",
-        [{ text: "OK", onPress: () => navigation.goBack() }]
-      );
+      if (online) {
+        setSuccess("");
+        Alert.alert("Success", "Transaction added!", [
+          { text: "OK", onPress: () => navigation.goBack() },
+        ]);
+      } else {
+        setSuccess("Saved offline — will sync when you're back online.");
+      }
+
     } catch (error) {
       setError("Failed to add transaction");
     } finally {
@@ -315,6 +319,9 @@ export default function AddTransactionScreen({ navigation }) {
      {/* Error message */}
       {error ? (
         <Text style={styles.errorText}>{error}</Text>
+      ) : null}   
+      {success ? (
+        <Text style={styles.successText}>{success}</Text>
       ) : null}
 
 
@@ -451,6 +458,16 @@ const styles = StyleSheet.create({
     backgroundColor: "#FEF2F2",
     padding: 10,
     borderRadius: 10,
+    successText: {
+    color: "#10B981",
+    fontSize: 14,
+    fontWeight: "500",
+    textAlign: "center",
+    marginTop: 16,
+    backgroundColor: "#ECFDF5",
+    padding: 10,
+    borderRadius: 10,
+  },
   },
     addChip: {
     paddingHorizontal: 16,

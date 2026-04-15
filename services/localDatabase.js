@@ -1,61 +1,56 @@
-import * as SQLite from "expo-sqlite";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
-let db = null;
+const PENDING_KEY = "pending_transactions";
 
 export const initDatabase = async () => {
-  if (db) return db;
-  db = await SQLite.openDatabaseAsync("finmanager.db");
-
-  await db.execAsync(`
-    CREATE TABLE IF NOT EXISTS pending_transactions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      title TEXT,
-      amount REAL,
-      type TEXT,
-      category TEXT,
-      account TEXT,
-      date TEXT,
-      synced INTEGER DEFAULT 0
-    );
-  `);
-
-  return db;
+  // No setup needed for AsyncStorage
+  return true;
 };
 
 export const savePendingTransaction = async (transaction) => {
-  const database = await initDatabase();
-  await database.runAsync(
-    `INSERT INTO pending_transactions (title, amount, type, category, account, date, synced) VALUES (?, ?, ?, ?, ?, ?, 0)`,
-    [
-      transaction.title,
-      transaction.amount,
-      transaction.type,
-      transaction.category,
-      transaction.account,
-      transaction.date,
-    ]
-  );
+  const pending = await getPendingTransactions();
+  const newEntry = {
+    id: Date.now(),
+    ...transaction,
+    synced: 0,
+  };
+  pending.push(newEntry);
+  await AsyncStorage.setItem(PENDING_KEY, JSON.stringify(pending));
 };
 
 export const getPendingTransactions = async () => {
-  const database = await initDatabase();
-  const rows = await database.getAllAsync(
-    `SELECT * FROM pending_transactions WHERE synced = 0`
-  );
-  return rows;
+  try {
+    const data = await AsyncStorage.getItem(PENDING_KEY);
+    if (!data) return [];
+    const all = JSON.parse(data);
+    return all.filter((t) => t.synced === 0);
+  } catch {
+    return [];
+  }
 };
 
 export const markAsSynced = async (id) => {
-  const database = await initDatabase();
-  await database.runAsync(
-    `UPDATE pending_transactions SET synced = 1 WHERE id = ?`,
-    [id]
-  );
+  try {
+    const data = await AsyncStorage.getItem(PENDING_KEY);
+    if (!data) return;
+    const all = JSON.parse(data);
+    const updated = all.map((t) =>
+      t.id === id ? { ...t, synced: 1 } : t
+    );
+    await AsyncStorage.setItem(PENDING_KEY, JSON.stringify(updated));
+  } catch {
+    console.log("Error marking as synced");
+  }
 };
 
 export const clearSyncedTransactions = async () => {
-  const database = await initDatabase();
-  await database.runAsync(
-    `DELETE FROM pending_transactions WHERE synced = 1`
-  );
+  try {
+    const data = await AsyncStorage.getItem(PENDING_KEY);
+    if (!data) return;
+    const all = JSON.parse(data);
+    const unsynced = all.filter((t) => t.synced === 0);
+    await AsyncStorage.setItem(PENDING_KEY, JSON.stringify(unsynced));
+  } catch {
+    console.log("Error clearing synced");
+  }
 };
