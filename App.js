@@ -5,6 +5,9 @@ import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { Text } from "react-native";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "./config/firebase";
+import { initDatabase } from "./services/localDatabase";
+import { syncPendingTransactions } from "./services/syncService";
+import NetInfo from "@react-native-community/netinfo";
 
 import LoginScreen from "./screens/LoginScreen";
 import SignUpScreen from "./screens/SignUpScreen";
@@ -104,7 +107,20 @@ export default function App() {
       setLoading(false);
     });
 
-    return unsubscribe;
+    // Initialize local database
+    initDatabase();
+
+    // Listen for network changes — sync when back online
+    const netUnsubscribe = NetInfo.addEventListener((state) => {
+      if (state.isConnected) {
+        syncPendingTransactions();
+      }
+    });
+
+    return () => {
+      unsubscribe();
+      netUnsubscribe();
+    };
   }, []);
 
   if (loading) return null;
