@@ -11,6 +11,7 @@ import {
 import { addTransaction, getCategories, getAccounts, initializeDefaultAccounts, addCategory } from "../services/firestoreService";
 import { savePendingTransaction } from "../services/localDatabase";
 import { isOnline, syncPendingTransactions } from "../services/syncService";
+import EmojiPicker from "rn-emoji-keyboard";
 
 export default function AddTransactionScreen({ navigation }) {
   const [note, setNote] = useState("");
@@ -25,7 +26,8 @@ export default function AddTransactionScreen({ navigation }) {
   const [success, setSuccess] = useState("");
   const [showAddCategory, setShowAddCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
-  const [newCategoryIcon, setNewCategoryIcon] = useState("🛒");
+  const [newCategoryIcon, setNewCategoryIcon] = useState("");
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -45,9 +47,12 @@ export default function AddTransactionScreen({ navigation }) {
     }
   };
 
-  const ICONS = ["🍔", "🏠", "🚗", "💊", "🎓", "🛒", "✈️", "🎮", "💰", "📱", "👕", "⚡", "☕", "🎵", "🐾", "💻"];
 
   const handleAddCategory = async () => {
+    if (!newCategoryIcon) {
+      setError("Please select an icon for the category");
+      return;
+  }
     if (!newCategoryName.trim()) {
       setError("Please enter a category name");
       return;
@@ -230,50 +235,56 @@ export default function AddTransactionScreen({ navigation }) {
                   >
                     {cat.icon} {cat.name}
                   </Text>
-                </TouchableOpacity>
-              ))}
-              <TouchableOpacity
-                style={styles.addChip}
-                onPress={() => setShowAddCategory(!showAddCategory)}
-              >
-                <Text style={styles.addChipText}>+ New</Text>
-              </TouchableOpacity>
-            </View>
-          </ScrollView>
+                  </TouchableOpacity>
+                    ))}
+                  </View>
+                  </ScrollView>
+
+                  <TouchableOpacity
+                    style={styles.addChip}
+                    onPress={() => setShowAddCategory(!showAddCategory)}
+                  >
+                  <Text style={styles.addChipText}>+ New Category</Text>
+                  </TouchableOpacity>
 
           {showAddCategory && (
             <View style={styles.newCategoryBox}>
-              <View style={styles.iconRow}>
-                {ICONS.map((icon) => (
-                  <TouchableOpacity
-                    key={icon}
-                    style={[
-                      styles.iconBtn,
-                      newCategoryIcon === icon && styles.iconBtnActive,
-                    ]}
-                    onPress={() => setNewCategoryIcon(icon)}
-                  >
-                    <Text style={{ fontSize: 18 }}>{icon}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-              <View style={styles.newCategoryRow}>
-                <TextInput
-                  style={styles.newCategoryInput}
-                  placeholder="Category name"
-                  placeholderTextColor="#9CA3AF"
-                  value={newCategoryName}
-                  onChangeText={setNewCategoryName}
-                />
-                <TouchableOpacity
-                  style={styles.newCategoryBtn}
-                  onPress={handleAddCategory}
-                >
-                  <Text style={styles.newCategoryBtnText}>Add</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
+            <TouchableOpacity
+              style={styles.emojiPickerButton}
+              onPress={() => setShowEmojiPicker(true)}
+             >
+            <Text style={{ fontSize: 24 }}>{newCategoryIcon || "➕"}</Text>
+            <Text style={styles.emojiPickerLabel}>
+               {newCategoryIcon ? "Tap to change icon" : "Tap to select icon"}
+            </Text>
+            </TouchableOpacity>
+
+            <View style={styles.newCategoryRow}>
+            <TextInput
+              style={styles.newCategoryInput}
+              placeholder="Category name"
+              placeholderTextColor="#9CA3AF"
+              value={newCategoryName}
+              onChangeText={setNewCategoryName}
+           />
+          <TouchableOpacity
+            style={styles.newCategoryBtn}
+            onPress={handleAddCategory}
+          >
+           <Text style={styles.newCategoryBtnText}>Add</Text>
+        </TouchableOpacity>
+      </View>
+
+    <EmojiPicker
+      onEmojiSelected={(emoji) => {
+        setNewCategoryIcon(emoji.emoji);
+        setShowEmojiPicker(false);
+      }}
+      open={showEmojiPicker}
+      onClose={() => setShowEmojiPicker(false)}
+    />
+  </View>
+)}
         </View>
       ) : (
         <TouchableOpacity
@@ -469,7 +480,8 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   },
-    addChip: {
+  addChip: {
+    alignSelf: "flex-start",
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 20,
@@ -477,6 +489,7 @@ const styles = StyleSheet.create({
     borderColor: "#4F46E5",
     borderStyle: "dashed",
     backgroundColor: "#EEF2FF",
+    marginTop: 8,
   },
   addChipText: {
     fontSize: 14,
@@ -535,4 +548,19 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     fontSize: 14,
   },
+  emojiPickerButton: {
+  flexDirection: "row",
+  alignItems: "center",
+  gap: 12,
+  padding: 12,
+  borderWidth: 1,
+  borderColor: "#ddd",
+  borderRadius: 12,
+  backgroundColor: "#fff",
+  marginBottom: 10,
+},
+emojiPickerLabel: {
+  fontSize: 14,
+  color: "#888",
+},
 });

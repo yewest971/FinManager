@@ -7,22 +7,26 @@ import {
   StyleSheet,
   FlatList,
   Alert,
+  Platform,
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
+import EmojiPicker from "rn-emoji-keyboard";
 import {
   addCategory,
   getCategories,
   deleteCategory,
-  initializeDefaultCategories,
+  syncDefaultCategories,
+  trackDeletedDefault,
+  DEFAULT_CATEGORIES,
 } from "../services/firestoreService";
-
-const ICONS = ["🍔", "🏠", "🚗", "💊", "🎓", "🛒", "✈️", "🎮", "💰", "📱", "👕", "⚡", "☕", "🎵", "🐾", "💻"];
 
 export default function CategoriesScreen() {
   const [categories, setCategories] = useState([]);
   const [name, setName] = useState("");
-  const [selectedIcon, setSelectedIcon] = useState("🛒");
+  const [selectedIcon, setSelectedIcon] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [error, setError] = useState("");
 
   useFocusEffect(
     useCallback(() => {
@@ -33,60 +37,85 @@ export default function CategoriesScreen() {
   const loadCategories = async () => {
     try {
       // This loads defaults only on first run (when no categories exist)
-      await initializeDefaultCategories();
+      await syncDefaultCategories();
       const data = await getCategories();
+      data.sort((a, b) => a.name.localeCompare(b.name));
       setCategories(data);
     } catch (error) {
       console.log("Error loading categories:", error);
     }
   };
 
-  const handleAdd = async () => {
-    if (!name.trim()) {
-      Alert.alert("Error", "Please enter a category name");
-      return;
-    }
+const handleAdd = async () => {
+  if (!selectedIcon) {
+    setError("Please select an icon for the category");
+    return;
+  }
 
-    const exists = categories.some(
-      (cat) => cat.name.toLowerCase() === name.trim().toLowerCase()
-    );
-    if (exists) {
-      Alert.alert("Error", "This category already exists");
-      return;
-    }
+  if (!name.trim()) {
+    setError("Please enter a category name");
+    return;
+  }
 
-    try {
-      setLoading(true);
-      await addCategory({
-        name: name.trim(),
-        icon: selectedIcon,
-      });
-      setName("");
-      loadCategories();
-    } catch (error) {
-      Alert.alert("Error", "Failed to add category");
-    } finally {
-      setLoading(false);
-    }
-  };
+  const exists = categories.some(
+    (cat) => cat.name.toLowerCase() === name.trim().toLowerCase()
+  );
+  if (exists) {
+    setError("This category already exists");
+    return;
+  }
 
-  const handleDelete = (id, catName) => {
+  try {
+    setError("");
+    setLoading(true);
+    await addCategory({
+      name: name.trim(),
+      icon: selectedIcon,
+    });
+    setName("");
+    setSelectedIcon("");
+    loadCategories();
+  } catch (err) {
+    setError("Failed to add category");
+  } finally {
+    setLoading(false);
+  }
+};
+
+const handleDelete = (id, catName) => {
+  if (Platform.OS === "web") {
+    const confirmed = window.confirm(`Delete "${catName}"?`);
+    if (confirmed) {
+      performDelete(id, catName);
+    }
+  } else {
     Alert.alert("Delete Category", `Delete "${catName}"?`, [
       { text: "Cancel", style: "cancel" },
       {
         text: "Delete",
         style: "destructive",
-        onPress: async () => {
-          try {
-            await deleteCategory(id);
-            setCategories((prev) => prev.filter((c) => c.id !== id));
-          } catch (error) {
-            Alert.alert("Error", "Failed to delete");
-          }
-        },
+        onPress: () => performDelete(id, catName),
       },
     ]);
-  };
+  }
+};
+
+const performDelete = async (id, catName) => {
+  try {
+    await deleteCategory(id);
+
+    const isDefault = DEFAULT_CATEGORIES.some(
+      (c) => c.name.toLowerCase() === catName.toLowerCase()
+    );
+    if (isDefault) {
+      await trackDeletedDefault(catName);
+    }
+
+    setCategories((prev) => prev.filter((c) => c.id !== id));
+  } catch (error) {
+    setError("Failed to delete category");
+  }
+};
 
   const renderCategory = ({ item }) => (
     <View style={styles.categoryCard}>
@@ -107,31 +136,39 @@ export default function CategoriesScreen() {
       {/* Add custom category */}
       <Text style={styles.label}>Add a new category</Text>
 
-      {/* Icon picker */}
-      <View style={styles.iconGrid}>
-        {ICONS.map((icon) => (
-          <TouchableOpacity
-            key={icon}
-            style={[
-              styles.iconButton,
-              selectedIcon === icon && styles.iconButtonActive,
-            ]}
-            onPress={() => setSelectedIcon(icon)}
-          >
-            <Text style={styles.iconText}>{icon}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+      {/* Emoji picker */}
+        <TouchableOpacity
+          style={styles.emojiPickerButton}
+          onPress={() => setShowEmojiPicker(true)}
+>
+        <Text style={styles.emojiPickerEmoji}>{selectedIcon || "➕"}</Text>
+        <Text style={styles.emojiPickerLabel}>{selectedIcon ? "Tap to change icon" : "Tap to select icon"}</Text>
+        </TouchableOpacity>
+
+        <EmojiPicker
+          onEmojiSelected={(emoji) => {
+            setSelectedIcon(emoji.emoji);
+            setShowEmojiPicker(false);
+            setError("");
+        }}
+          open={showEmojiPicker}
+          onClose={() => setShowEmojiPicker(false)}
+        />
 
       {/* Name input */}
+      {error ? <Text style={styles.errorText}>{error}</Text> : null}
       <View style={styles.addRow}>
         <TextInput
           style={styles.input}
           placeholder="e.g. Subscriptions"
           placeholderTextColor="#9CA3AF" 
           value={name}
-          onChangeText={setName}
-        />
+          onChangeText={(text) => {
+          setName(text);
+          setError("");
+           }}
+          />
+
         <TouchableOpacity
           style={[styles.addButton, loading && { opacity: 0.6 }]}
           onPress={handleAdd}
@@ -143,7 +180,7 @@ export default function CategoriesScreen() {
 
       {/* Category list */}
       <Text style={styles.listHeading}>
-        Your categories ({categories.length})
+        Categories ({categories.length})
       </Text>
 
       {categories.length === 0 ? (
@@ -268,4 +305,28 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginTop: 20,
   },
+  emojiPickerButton: {
+  flexDirection: "row",
+  alignItems: "center",
+  gap: 12,
+  padding: 12,
+  borderWidth: 1,
+  borderColor: "#ddd",
+  borderRadius: 12,
+  backgroundColor: "#f9f9f9",
+  marginBottom: 12,
+},
+emojiPickerEmoji: {
+  fontSize: 32,
+},
+emojiPickerLabel: {
+  fontSize: 14,
+  color: "#888",
+},
+errorText: {
+  color: "#EF4444",
+  fontSize: 13,
+  marginBottom: 8,
+  fontWeight: "500",
+},
 });

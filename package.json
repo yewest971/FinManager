@@ -27,6 +27,7 @@
     "react-native-screens": "~4.16.0",
     "react-native-svg": "^15.15.4",
     "react-native-web": "^0.21.0",
+    "rn-emoji-keyboard": "^1.7.0",
     "victory-native": "^41.20.2"
   },
   "private": true

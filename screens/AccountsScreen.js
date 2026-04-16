@@ -8,8 +8,10 @@ import {
   FlatList,
   Alert,
   Modal,
+  Platform,
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
+
 import {
   addAccount,
   getAccounts,
@@ -23,7 +25,7 @@ const ACCOUNT_TYPES = [
   { label: "Cash", value: "cash", icon: "💵" },
   { label: "Bank", value: "bank", icon: "🏦" },
   { label: "Credit Card", value: "credit", icon: "💳" },
-  { label: "Savings", value: "savings", icon: "🐷" },
+  { label: "Savings", value: "savings", icon: "💰" },
   { label: "E-Wallet", value: "ewallet", icon: "📱" },
 ];
 
@@ -31,7 +33,7 @@ export default function AccountsScreen() {
   const [accounts, setAccounts] = useState([]);
   const [balances, setBalances] = useState({});
   const [name, setName] = useState("");
-  const [selectedType, setSelectedType] = useState("cash");
+  const [selectedType, setSelectedType] = useState(null);
   const [loading, setLoading] = useState(false);
 
   // Transfer state
@@ -111,6 +113,7 @@ export default function AccountsScreen() {
         icon: getIcon(selectedType),
       });
       setName("");
+      setSelectedType(null);
       loadData();
     } catch (error) {
       Alert.alert("Error", "Failed to add account");
@@ -119,15 +122,32 @@ export default function AccountsScreen() {
     }
   };
 
-  const handleDelete = async (id) => {
-    try {
-      await deleteAccount(id);
-      loadData();
-    } catch (error) {
-      Alert.alert("Error", "Failed to delete");
+const handleDelete = (id, accName) => {
+  if (Platform.OS === "web") {
+    const confirmed = window.confirm(`Delete "${accName}"?`);
+    if (confirmed) {
+      performDelete(id);
     }
-  };
+  } else {
+    Alert.alert("Delete Account", `Delete "${accName}"?`, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: () => performDelete(id),
+      },
+    ]);
+  }
+};
 
+const performDelete = async (id) => {
+  try {
+    await deleteAccount(id);
+    loadData();
+  } catch (error) {
+    console.log("Delete error:", error);
+  }
+};
   const handleTransfer = async () => {
     if (!fromAccount || !toAccount) {
       Alert.alert("Error", "Please select both accounts");
@@ -215,7 +235,7 @@ export default function AccountsScreen() {
           >
             {bal.toFixed(2)}
           </Text>
-          <TouchableOpacity onPress={() => handleDelete(item.id)}>
+          <TouchableOpacity onPress={() => handleDelete(item.id, item.name)}>
             <Text style={styles.deleteLink}>Delete</Text>
           </TouchableOpacity>
         </View>

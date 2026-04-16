@@ -177,26 +177,87 @@ export const initializeDefaultAccounts = async () => {
 // ============ DEFAULT CATEGORIES ============
 
 export const DEFAULT_CATEGORIES = [
+  // Essentials
   { name: "Food & Dining", icon: "🍔" },
-  { name: "Transport", icon: "🚗" },
+  { name: "Groceries", icon: "🛒" },
   { name: "Rent & Housing", icon: "🏠" },
-  { name: "Shopping", icon: "🛒" },
-  { name: "Entertainment", icon: "🎮" },
-  { name: "Health", icon: "💊" },
-  { name: "Education", icon: "🎓" },
   { name: "Utilities", icon: "⚡" },
-  { name: "Travel", icon: "✈️" },
+  { name: "Internet & Phone", icon: "📶" },
+  
+  // Transport
+  { name: "Car", icon: "🚗" },
+  { name: "Petrol", icon: "⛽" },
+  { name: "Transport", icon: "🚇" },
+  { name: "Taxi", icon: "🚕" },
+  { name: "Parking", icon: "🅿️" },
+
+  // Lifestyle
+  { name: "Shopping", icon: "🛍️" },
+  { name: "Clothing", icon: "👕" },
+  { name: "Entertainment", icon: "🎮" },
+  { name: "Subscriptions", icon: "📺" },
+  { name: "Coffee & Drinks", icon: "☕" },
+
+  // Health & growth
+  { name: "Health", icon: "💊" },
+  { name: "Gym & Fitness", icon: "🏋️" },
+  { name: "Education", icon: "🎓" },
+  { name: "Books", icon: "📚" },
+
+  // Financial
   { name: "Salary", icon: "💰" },
+  { name: "Freelance", icon: "💻" },
+  { name: "Investments", icon: "📈" },
+  { name: "Insurance", icon: "🛡️" },
+
+  // Other
+  { name: "Travel", icon: "✈️" },
+  { name: "Gifts", icon: "🎁" },
+  { name: "Personal Care", icon: "💈" },
+  { name: "Pets", icon: "🐾" },
+  { name: "Donations", icon: "❤️" },
+  { name: "Other", icon: "📌" },
 ];
 
-export const initializeDefaultCategories = async () => {
+// ============ DELETED DEFAULTS TRACKING ============
+
+export const getDeletedDefaults = async () => {
+  const user = auth.currentUser;
+  if (!user) return [];
+
+  const q = query(
+    collection(db, "deletedDefaults"),
+    where("userId", "==", user.uid)
+  );
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map((doc) => doc.data().name.toLowerCase());
+};
+
+export const trackDeletedDefault = async (name) => {
+  const user = auth.currentUser;
+  if (!user) return;
+
+  await addDoc(collection(db, "deletedDefaults"), {
+    name: name,
+    userId: user.uid,
+  });
+};
+
+export const syncDefaultCategories = async () => {
   const user = auth.currentUser;
   if (!user) throw new Error("Not logged in");
 
   const existing = await getCategories();
-  if (existing.length > 0) return; // Already has categories, skip
+  const existingNames = existing.map((c) => c.name.toLowerCase());
+  const deletedNames = await getDeletedDefaults();
 
-  for (const cat of DEFAULT_CATEGORIES) {
+  const missing = DEFAULT_CATEGORIES.filter(
+    (cat) =>
+      !existingNames.includes(cat.name.toLowerCase()) &&
+      !deletedNames.includes(cat.name.toLowerCase())
+  );
+
+  for (const cat of missing) {
     await addCategory(cat);
   }
 };

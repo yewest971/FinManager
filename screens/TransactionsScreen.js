@@ -1,5 +1,4 @@
 import React, { useState, useCallback } from "react";
-import { Platform } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import {
   View,
@@ -10,13 +9,16 @@ import {
   Alert,
   TextInput,
   ScrollView,
+  Platform,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
 import {
   getTransactions,
   deleteTransaction,
   updateTransaction,
   getCategories,
+  getAccounts,
 } from "../services/firestoreService";
 
 export default function TransactionsScreen({ navigation }) {
@@ -32,14 +34,26 @@ export default function TransactionsScreen({ navigation }) {
   const [editCategory, setEditCategory] = useState("");
   const [categories, setCategories] = useState([]);
   const [sortBy, setSortBy] = useState("date_desc");
+  const [editAccount, setEditAccount] = useState("");
+  const [accounts, setAccounts] = useState([]);
 
   // Reload transactions every time this screen comes into focus
   useFocusEffect(
     useCallback(() => {
       loadTransactions();
       loadCategories();
+      loadAccounts();
     }, [])
   );
+
+  const loadAccounts = async () => {
+    try {
+    const data = await getAccounts();
+    setAccounts(data);
+  } catch (error) {
+    console.log("Error loading accounts:", error);
+  }
+};
 
   const loadTransactions = async () => {
     try {
@@ -62,15 +76,32 @@ export default function TransactionsScreen({ navigation }) {
   }
 };
 
-const handleDelete = async (id) => {
-    try {
-      await deleteTransaction(id);
-      setTransactions((prev) => prev.filter((t) => t.id !== id));
-    } catch (error) {
-      console.log("Delete error:", error);
-      Alert.alert("Error", "Failed to delete: " + error.message);
+const handleDelete = (id) => {
+  if (Platform.OS === "web") {
+    const confirmed = window.confirm("Delete this transaction?");
+    if (confirmed) {
+      performDelete(id);
     }
-  };
+  } else {
+    Alert.alert("Delete Transaction", "Delete this transaction?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: () => performDelete(id),
+      },
+    ]);
+  }
+};
+
+const performDelete = async (id) => {
+  try {
+    await deleteTransaction(id);
+    setTransactions((prev) => prev.filter((t) => t.id !== id));
+  } catch (error) {
+    console.log("Delete error:", error);
+  }
+};
 
   const startEditing = (item) => {
     setEditingId(item.id);
@@ -79,6 +110,7 @@ const handleDelete = async (id) => {
     setEditType(item.type);
     setEditDate(item.date || new Date().toISOString());
     setEditCategory(item.category || "");
+    setEditAccount(item.account || "");
   };
 
   const handleUpdate = async () => {
@@ -93,6 +125,7 @@ const handleDelete = async (id) => {
         amount: parseFloat(editAmount),
         type: editType,
         category: editCategory,
+        account: editAccount,
         date: editDate,
       });
       setEditingId(null);
@@ -168,8 +201,8 @@ if (isEditing) {
 
 {/* Category selector */}
 <Text style={styles.editCategoryLabel}>Category</Text>
-<ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}>
-  <View style={{ flexDirection: "row", gap: 8 }}>
+<ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 6, maxHeight: 36  }}>
+   <View style={{ flexDirection: "row", gap: 8 }}>
     {categories.map((cat) => (
       <TouchableOpacity
         key={cat.id}
@@ -186,6 +219,36 @@ if (isEditing) {
           ]}
         >
           {cat.icon} {cat.name}
+        </Text>
+      </TouchableOpacity>
+    ))}
+  </View>
+</ScrollView>
+
+{/* Account selector */}
+<Text style={styles.editCategoryLabel}>Account</Text>
+<ScrollView
+  horizontal
+  showsHorizontalScrollIndicator={false}
+  style={{ marginBottom: 6, maxHeight: 36 }}
+>
+  <View style={{ flexDirection: "row", gap: 8 }}>
+    {accounts.map((acc) => (
+      <TouchableOpacity
+        key={acc.id}
+        style={[
+          styles.categoryChip,
+          editAccount === acc.name && styles.categoryChipActive,
+        ]}
+        onPress={() => setEditAccount(acc.name)}
+      >
+        <Text
+          style={[
+            styles.categoryChipText,
+            editAccount === acc.name && styles.categoryChipTextActive,
+          ]}
+        >
+          {acc.icon} {acc.name}
         </Text>
       </TouchableOpacity>
     ))}
@@ -339,6 +402,7 @@ if (isEditing) {
   const balance = totalIncome - totalExpenses;
 
   return (
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
     <View style={styles.container}>
       <Text style={styles.heading}>Transactions</Text>
 
@@ -362,42 +426,37 @@ if (isEditing) {
             {balance.toFixed(2)}
           </Text>
         </View>
-      </View>
+    </View>
 
-      {/* Sort filters */}
+    <View style={{ flex: 1, justifyContent: "flex-start" }}>
+
+{/* Sort filters */}
 <ScrollView
   horizontal
   showsHorizontalScrollIndicator={false}
-  style={{ marginBottom: 12 }}
+  style={styles.filterScroll}
+  contentContainerStyle={styles.filterRow}
 >
-  <View style={styles.filterRow}>
-    {[
-      { label: "Newest", value: "date_desc" },
-      { label: "Oldest", value: "date_asc" },
-      { label: "Highest", value: "amount_desc" },
-      { label: "Lowest", value: "amount_asc" },
-      { label: "Name A–Z", value: "name_asc" },
-      { label: "Name Z–A", value: "name_desc" },
-    ].map((filter) => (
-      <TouchableOpacity
-        key={filter.value}
-        style={[
-          styles.filterChip,
-          sortBy === filter.value && styles.filterChipActive,
-        ]}
-        onPress={() => setSortBy(filter.value)}
+  {[
+    { label: "Newest", value: "date_desc" },
+    { label: "Oldest", value: "date_asc" },
+    { label: "Highest", value: "amount_desc" },
+    { label: "Lowest", value: "amount_asc" },
+    { label: "A–Z", value: "name_asc" },
+    { label: "Z–A", value: "name_desc" },
+  ].map((filter) => (
+    <TouchableOpacity
+      key={filter.value}
+      style={[styles.filterChip, sortBy === filter.value && styles.filterChipActive]}
+      onPress={() => setSortBy(filter.value)}
+    >
+      <Text
+        style={[styles.filterChipText, sortBy === filter.value && styles.filterChipTextActive]}
       >
-        <Text
-          style={[
-            styles.filterChipText,
-            sortBy === filter.value && styles.filterChipTextActive,
-          ]}
-        >
-          {filter.label}
-        </Text>
-      </TouchableOpacity>
-    ))}
-  </View>
+        {filter.label}
+      </Text>
+    </TouchableOpacity>
+  ))}
 </ScrollView>
 
       {/* Transaction list */}
@@ -419,53 +478,56 @@ if (isEditing) {
     renderItem={renderTransaction}
     keyExtractor={(item) => item.id}
     showsVerticalScrollIndicator={false}
+    style={{ flex: 1 }}
     contentContainerStyle={{ paddingBottom: 20 }}
-    extraData={{ showDatePicker, showTimePicker, editDate, editingId, editCategory, sortBy }}
+    extraData={{ showDatePicker, showTimePicker, editDate, editingId, editCategory, editAccount, sortBy }}
     />
       )}
+      </View>
     </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    backgroundColor: "#fff",
-    padding: 24,
-    paddingTop: 60,
-  },
+  flex: 1,
+  backgroundColor: "#fff",
+  padding: 16,
+  paddingTop: 8,
+},
   heading: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: "bold",
     marginBottom: 16,
     color: "#1a1a1a",
   },
   summaryRow: {
     flexDirection: "row",
-    gap: 8,
-    marginBottom: 20,
+    gap: 6,
+    marginBottom: 12,
   },
-  summaryCard: {
-    flex: 1,
-    padding: 12,
-    borderRadius: 12,
-    alignItems: "center",
-  },
-  summaryLabel: {
-    fontSize: 12,
-    color: "#555",
-    marginBottom: 4,
-  },
-  summaryValue: {
-    fontSize: 16,
-    fontWeight: "bold",
-  },
+summaryCard: {
+  flex: 1,
+  padding: 8,
+  borderRadius: 10,
+  alignItems: "center",
+},
+summaryLabel: {
+  fontSize: 11,
+  color: "#555",
+  marginBottom: 2,
+},
+summaryValue: {
+  fontSize: 14,
+  fontWeight: "bold",
+},
   card: {
     borderWidth: 1,
     borderColor: "#eee",
     borderRadius: 12,
-    padding: 14,
-    marginBottom: 10,
+    padding: 10,
+    marginBottom: 8,
   },
   cardTop: {
     flexDirection: "row",
@@ -636,11 +698,17 @@ categoryChipTextActive: {
   color: "#fff",
   fontWeight: "500",
 },
+filterScroll: {
+  marginHorizontal: -16, // escape the container's 16px padding
+  marginTop: 4,
+  marginBottom: 12,
+  flexGrow: 0,
+},
 filterRow: {
   flexDirection: "row",
   gap: 8,
-  paddingVertical: 4,
   alignItems: "center",
+  paddingHorizontal: 16, // re-apply padding inside so first chip aligns with heading
 },
 filterChip: {
   paddingHorizontal: 14,
@@ -649,19 +717,23 @@ filterChip: {
   borderWidth: 1,
   borderColor: "#ddd",
   backgroundColor: "#f9f9f9",
-  alignSelf: "flex-start",
 },
 filterChipActive: {
   backgroundColor: "#4F46E5",
   borderColor: "#4F46E5",
 },
 filterChipText: {
-  fontSize: 13,
+  fontSize: 12,
   color: "#555",
   fontWeight: "500",
 },
 filterChipTextActive: {
   color: "#fff",
   fontWeight: "600",
+},
+safeArea: {
+  flex: 1,
+  backgroundColor: "#fff",
+  paddingHorizontal: 0,
 },
 });

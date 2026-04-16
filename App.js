@@ -7,6 +7,7 @@ import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "./config/firebase";
 import { initDatabase } from "./services/localDatabase";
 import { syncPendingTransactions } from "./services/syncService";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import NetInfo from "@react-native-community/netinfo";
 
 import LoginScreen from "./screens/LoginScreen";
@@ -125,7 +126,8 @@ export default function App() {
 
   if (loading) return null;
 
-  return (
+return (
+  <SafeAreaProvider>
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {user ? (
@@ -138,5 +140,5 @@ export default function App() {
         )}
       </Stack.Navigator>
     </NavigationContainer>
-  );
-}
+  </SafeAreaProvider>
+);}
