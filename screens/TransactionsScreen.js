@@ -260,52 +260,95 @@ if (isEditing) {
   {`${editDateObj.toLocaleDateString()} ${editHours}:${editMinutes} ${editAmPm}`}
 </Text>
 
-{/* Date and Time picker buttons */}
-<View style={styles.timeRow}>
-  <TouchableOpacity
-    style={styles.timeButton}
-    onPress={() => setShowDatePicker(true)}
-  >
-    <Text style={styles.timeButtonText}>📅 Date</Text>
-  </TouchableOpacity>
-  <TouchableOpacity
-    style={styles.timeButton}
-    onPress={() => setShowTimePicker(true)}
-  >
-    <Text style={styles.timeButtonText}>🕐 Time</Text>
-  </TouchableOpacity>
-</View>
-
-{showDatePicker && (
-  <DateTimePicker
-    value={new Date(editDate)}
-    mode="date"
-    display="default"
-    onChange={(event, selectedDate) => {
-      setShowDatePicker(false);
-      if (selectedDate) {
+{/* Date and Time picker */}
+{Platform.OS === "web" ? (
+  <View style={styles.timeRow}>
+    <input
+      type="date"
+      value={editDateObj.toISOString().split("T")[0]}
+      onChange={(e) => {
         const current = new Date(editDate);
-        selectedDate.setHours(current.getHours(), current.getMinutes());
-        setEditDate(selectedDate.toISOString());
-      }
-    }}
-  />
-)}
-
-{showTimePicker && (
-  <DateTimePicker
-    value={new Date(editDate)}
-    mode="time"
-    display="default"
-    onChange={(event, selectedTime) => {
-      setShowTimePicker(false);
-      if (selectedTime) {
-        const current = new Date(editDate);
-        current.setHours(selectedTime.getHours(), selectedTime.getMinutes());
+        const [year, month, day] = e.target.value.split("-");
+        current.setFullYear(year, month - 1, day);
         setEditDate(current.toISOString());
-      }
-    }}
-  />
+      }}
+      style={{
+        flex: 1,
+        padding: 10,
+        borderRadius: 10,
+        border: "1px solid #ddd",
+        fontSize: 14,
+        backgroundColor: "#f9f9f9",
+      }}
+    />
+    <input
+      type="time"
+      value={`${String(editDateObj.getHours()).padStart(2, "0")}:${editMinutes}`}
+      onChange={(e) => {
+        const current = new Date(editDate);
+        const [hours, mins] = e.target.value.split(":");
+        current.setHours(parseInt(hours), parseInt(mins));
+        setEditDate(current.toISOString());
+      }}
+      style={{
+        flex: 1,
+        padding: 10,
+        borderRadius: 10,
+        border: "1px solid #ddd",
+        fontSize: 14,
+        backgroundColor: "#f9f9f9",
+      }}
+    />
+  </View>
+) : (
+  <>
+    <View style={styles.timeRow}>
+      <TouchableOpacity
+        style={styles.timeButton}
+        onPress={() => setShowDatePicker(true)}
+      >
+        <Text style={styles.timeButtonText}>📅 Date</Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={styles.timeButton}
+        onPress={() => setShowTimePicker(true)}
+      >
+        <Text style={styles.timeButtonText}>🕐 Time</Text>
+      </TouchableOpacity>
+    </View>
+
+    {showDatePicker && (
+      <DateTimePicker
+        value={new Date(editDate)}
+        mode="date"
+        display="default"
+        onChange={(event, selectedDate) => {
+          setShowDatePicker(false);
+          if (selectedDate) {
+            const current = new Date(editDate);
+            selectedDate.setHours(current.getHours(), current.getMinutes());
+            setEditDate(selectedDate.toISOString());
+          }
+        }}
+      />
+    )}
+
+    {showTimePicker && (
+      <DateTimePicker
+        value={new Date(editDate)}
+        mode="time"
+        display="default"
+        onChange={(event, selectedTime) => {
+          setShowTimePicker(false);
+          if (selectedTime) {
+            const current = new Date(editDate);
+            current.setHours(selectedTime.getHours(), selectedTime.getMinutes());
+            setEditDate(current.toISOString());
+          }
+        }}
+      />
+    )}
+  </>
 )}
 
           <View style={styles.editActions}>
@@ -322,6 +365,8 @@ if (isEditing) {
         </View>
       );
     }
+
+
         //time date format
     const formatDate = (dateStr) => {
       if (!dateStr) return "No date";

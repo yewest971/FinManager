@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from "react";
 import {
   View,
+  ScrollView,
   Text,
   TextInput,
   TouchableOpacity,
@@ -16,6 +17,7 @@ import {
   addAccount,
   getAccounts,
   deleteAccount,
+  updateAccount,
   initializeDefaultAccounts,
   getTransactions,
   addTransaction,
@@ -35,6 +37,10 @@ export default function AccountsScreen() {
   const [name, setName] = useState("");
   const [selectedType, setSelectedType] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [editName, setEditName] = useState("");
+  const [editType, setEditType] = useState("cash");
+  const [editBalance, setEditBalance] = useState("");
 
   // Transfer state
   const [showTransfer, setShowTransfer] = useState(false);
@@ -121,6 +127,57 @@ export default function AccountsScreen() {
       setLoading(false);
     }
   };
+
+  const startEditing = (item) => {
+  const bal = balances[item.name] || 0;
+  setEditingId(item.id);
+  setEditName(item.name);
+  setEditType(item.type);
+  setEditBalance(String(bal.toFixed(2)));
+};
+
+const handleUpdate = async () => {
+  if (!editName.trim()) {
+    if (Platform.OS === "web") {
+      window.alert("Please enter an account name");
+    } else {
+      Alert.alert("Error", "Please enter an account name");
+    }
+    return;
+  }
+
+  try {
+    const item = accounts.find((a) => a.id === editingId);
+    const oldName = item.name;
+    const oldBalance = balances[oldName] || 0;
+    const newBalance = parseFloat(editBalance) || 0;
+    const difference = newBalance - oldBalance;
+
+    // Update account details
+    await updateAccount(editingId, {
+      name: editName.trim(),
+      type: editType,
+      icon: getIcon(editType),
+    });
+
+    // Create adjustment transaction if balance changed
+    if (difference !== 0) {
+      await addTransaction({
+        title: `Balance adjustment (${oldName})`,
+        amount: Math.abs(difference),
+        type: difference > 0 ? "income" : "expense",
+        category: "Adjustment",
+        account: editName.trim(),
+        date: new Date().toISOString(),
+      });
+    }
+
+    setEditingId(null);
+    loadData();
+  } catch (error) {
+    console.log("Update error:", error);
+  }
+};
 
 const handleDelete = (id, accName) => {
   if (Platform.OS === "web") {
@@ -213,35 +270,99 @@ const performDelete = async (id) => {
   // Total balance
   const totalBalance = Object.values(balances).reduce((sum, b) => sum + b, 0);
 
-  const renderAccount = ({ item }) => {
-    const bal = balances[item.name] || 0;
-    const isNegative = bal < 0;
+const renderAccount = ({ item }) => {
+  const bal = balances[item.name] || 0;
+  const isNegative = bal < 0;
+  const isEditing = editingId === item.id;
 
+  if (isEditing) {
     return (
       <View style={styles.accountCard}>
-        <View style={styles.accountLeft}>
-          <Text style={styles.accountIcon}>{item.icon}</Text>
-          <View>
-            <Text style={styles.accountName}>{item.name}</Text>
-            <Text style={styles.accountType}>{item.type}</Text>
-          </View>
+        <Text style={styles.editLabel}>Account Name</Text>
+        <TextInput
+          style={styles.editInput}
+          value={editName}
+          onChangeText={setEditName}
+          placeholder="Account name"
+        />
+
+        <Text style={styles.editLabel}>Account Type</Text>
+        <View style={styles.editTypeRow}>
+          {ACCOUNT_TYPES.map((t) => (
+            <TouchableOpacity
+              key={t.value}
+              style={[
+                styles.editTypeChip,
+                editType === t.value && styles.editTypeChipActive,
+              ]}
+              onPress={() => setEditType(t.value)}
+            >
+              <Text
+                style={[
+                  styles.editTypeChipText,
+                  editType === t.value && styles.editTypeChipTextActive,
+                ]}
+              >
+                {t.icon} {t.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
         </View>
-        <View style={styles.accountRight}>
-          <Text
-            style={[
-              styles.accountBalance,
-              { color: isNegative ? "#EF4444" : "#10B981" },
-            ]}
+
+        <Text style={styles.editLabel}>Balance</Text>
+        <TextInput
+          style={styles.editInput}
+          value={editBalance}
+          onChangeText={setEditBalance}
+          placeholder="0.00"
+          keyboardType="decimal-pad"
+        />
+
+        <View style={styles.editActions}>
+          <TouchableOpacity style={styles.saveButton} onPress={handleUpdate}>
+            <Text style={styles.saveButtonText}>Save</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.cancelButton}
+            onPress={() => setEditingId(null)}
           >
-            {bal.toFixed(2)}
-          </Text>
+            <Text style={styles.cancelButtonText}>Cancel</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.accountCard}>
+      <View style={styles.accountLeft}>
+        <Text style={styles.accountIcon}>{item.icon}</Text>
+        <View>
+          <Text style={styles.accountName}>{item.name}</Text>
+          <Text style={styles.accountType}>{item.type}</Text>
+        </View>
+      </View>
+      <View style={styles.accountRight}>
+        <Text
+          style={[
+            styles.accountBalance,
+            { color: isNegative ? "#EF4444" : "#10B981" },
+          ]}
+        >
+          {bal.toFixed(2)}
+        </Text>
+        <View style={styles.actionRow}>
+          <TouchableOpacity onPress={() => startEditing(item)}>
+            <Text style={styles.editLink}>Edit</Text>
+          </TouchableOpacity>
           <TouchableOpacity onPress={() => handleDelete(item.id, item.name)}>
             <Text style={styles.deleteLink}>Delete</Text>
           </TouchableOpacity>
         </View>
       </View>
-    );
-  };
+    </View>
+  );
+};
 
   return (
     <View style={styles.container}>
@@ -542,16 +663,18 @@ const styles = StyleSheet.create({
     color: "#1a1a1a",
     marginBottom: 12,
   },
-  accountCard: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: 14,
-    borderWidth: 1,
-    borderColor: "#eee",
-    borderRadius: 12,
-    marginBottom: 8,
-  },
+accountCard: {
+  padding: 14,
+  borderWidth: 1,
+  borderColor: "#eee",
+  borderRadius: 12,
+  marginBottom: 8,
+},
+accountCardRow: {
+  flexDirection: "row",
+  justifyContent: "space-between",
+  alignItems: "center",
+},
   accountLeft: {
     flexDirection: "row",
     alignItems: "center",
@@ -683,4 +806,84 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     fontSize: 15,
   },
+  editLabel: {
+  fontSize: 13,
+  fontWeight: "600",
+  color: "#555",
+  marginBottom: 6,
+  marginTop: 8,
+},
+editInput: {
+  borderWidth: 1,
+  borderColor: "#ddd",
+  borderRadius: 10,
+  padding: 10,
+  fontSize: 15,
+  marginBottom: 8,
+  backgroundColor: "#f9f9f9",
+},
+editTypeRow: {
+  flexDirection: "row",
+  flexWrap: "wrap",
+  gap: 8,
+  marginBottom: 8,
+},
+editTypeChip: {
+  paddingHorizontal: 12,
+  paddingVertical: 8,
+  borderRadius: 20,
+  borderWidth: 1,
+  borderColor: "#ddd",
+  backgroundColor: "#f9f9f9",
+},
+editTypeChipActive: {
+  backgroundColor: "#4F46E5",
+  borderColor: "#4F46E5",
+},
+editTypeChipText: {
+  fontSize: 13,
+  color: "#555",
+},
+editTypeChipTextActive: {
+  color: "#fff",
+  fontWeight: "500",
+},
+editActions: {
+  flexDirection: "row",
+  gap: 10,
+  marginTop: 10,
+},
+saveButton: {
+  flex: 1,
+  backgroundColor: "#4F46E5",
+  padding: 12,
+  borderRadius: 10,
+  alignItems: "center",
+},
+saveButtonText: {
+  color: "#fff",
+  fontWeight: "600",
+},
+cancelButton: {
+  flex: 1,
+  borderWidth: 1,
+  borderColor: "#ddd",
+  padding: 12,
+  borderRadius: 10,
+  alignItems: "center",
+},
+cancelButtonText: {
+  color: "#555",
+  fontWeight: "500",
+},
+editLink: {
+  fontSize: 13,
+  color: "#4F46E5",
+  fontWeight: "500",
+},
+actionRow: {
+  flexDirection: "row",
+  gap: 12,
+  marginTop: 4,
+},
 });

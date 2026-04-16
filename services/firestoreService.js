@@ -157,6 +157,12 @@ export const getAccounts = async () => {
   }));
 };
 
+export const updateAccount = async (id, updates) => {
+  const ref = doc(db, "accounts", id);
+  return await updateDoc(ref, updates);
+};
+
+
 export const deleteAccount = async (id) => {
   const ref = doc(db, "accounts", id);
   return await deleteDoc(ref);
