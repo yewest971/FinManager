@@ -10,6 +10,7 @@ import {
   TextInput,
   ScrollView,
   Platform,
+  KeyboardAvoidingView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
@@ -435,108 +436,146 @@ if (isEditing) {
   }
 });
 
-  // Calculate totals
-  const totalIncome = transactions
-    .filter((t) => t.type === "income")
-    .reduce((sum, t) => sum + t.amount, 0);
+// Calculate totals (exclude credit card transactions)
+const creditAccounts = transactions
+  .filter((t) => {
+    const acc = accounts.find((a) => a.name === t.account);
+    return acc && acc.type === "credit";
+  })
+  .map((t) => t.account);
 
-  const totalExpenses = transactions
-    .filter((t) => t.type === "expense")
-    .reduce((sum, t) => sum + t.amount, 0);
+const creditAccountNames = [...new Set(creditAccounts)];
 
-  const balance = totalIncome - totalExpenses;
+const totalIncome = transactions
+  .filter((t) => t.type === "income" && !creditAccountNames.includes(t.account))
+  .reduce((sum, t) => sum + t.amount, 0);
 
-  return (
-    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-    <View style={styles.container}>
-      <Text style={styles.heading}>Transactions</Text>
+const totalExpenses = transactions
+  .filter((t) => {
+    // Regular expenses from non-credit accounts
+    if (t.type === "expense" && !creditAccountNames.includes(t.account)) return true;
+    // Transfers TO credit cards (payoffs) count as expenses
+    if (t.type === "transfer_in") {
+      const acc = accounts.find((a) => a.name === t.account);
+      if (acc && acc.type === "credit") return true;
+    }
+    return false;
+  })
+  .reduce((sum, t) => sum + t.amount, 0);
 
-      {/* Summary */}
-      <View style={styles.summaryRow}>
-        <View style={[styles.summaryCard, { backgroundColor: "#ECFDF5" }]}>
-          <Text style={styles.summaryLabel}>Income</Text>
-          <Text style={[styles.summaryValue, { color: "#10B981" }]}>
-            {totalIncome.toFixed(2)}
-          </Text>
-        </View>
-        <View style={[styles.summaryCard, { backgroundColor: "#FEF2F2" }]}>
-          <Text style={styles.summaryLabel}>Expenses</Text>
-          <Text style={[styles.summaryValue, { color: "#EF4444" }]}>
-            {totalExpenses.toFixed(2)}
-          </Text>
-        </View>
-        <View style={[styles.summaryCard, { backgroundColor: "#EEF2FF" }]}>
-          <Text style={styles.summaryLabel}>Balance</Text>
-          <Text style={[styles.summaryValue, { color: "#4F46E5" }]}>
-            {balance.toFixed(2)}
-          </Text>
-        </View>
-    </View>
+const balance = totalIncome - totalExpenses;
 
-    <View style={{ flex: 1, justifyContent: "flex-start" }}>
+// Credit card outstanding (expenses minus payments on credit accounts)
+const creditOutstanding = transactions
+  .filter((t) => {
+    const acc = accounts.find((a) => a.name === t.account);
+    return acc && acc.type === "credit";
+  })
+  .reduce((sum, t) => {
+    if (t.type === "expense") return sum + t.amount;
+    if (t.type === "income") return sum - t.amount;
+    if (t.type === "transfer_in") return sum - t.amount;
+    return sum;
+  }, 0);
 
-{/* Sort filters */}
-<ScrollView
-  horizontal
-  showsHorizontalScrollIndicator={false}
-  style={styles.filterScroll}
-  contentContainerStyle={styles.filterRow}
->
-  {[
-    { label: "Newest", value: "date_desc" },
-    { label: "Oldest", value: "date_asc" },
-    { label: "Highest", value: "amount_desc" },
-    { label: "Lowest", value: "amount_asc" },
-    { label: "A–Z", value: "name_asc" },
-    { label: "Z–A", value: "name_desc" },
-  ].map((filter) => (
-    <TouchableOpacity
-      key={filter.value}
-      style={[styles.filterChip, sortBy === filter.value && styles.filterChipActive]}
-      onPress={() => setSortBy(filter.value)}
-    >
-      <Text
-        style={[styles.filterChipText, sortBy === filter.value && styles.filterChipTextActive]}
-      >
-        {filter.label}
-      </Text>
-    </TouchableOpacity>
-  ))}
-</ScrollView>
-
-      {/* Transaction list */}
-      {loading ? (
-        <Text style={styles.emptyText}>Loading...</Text>
-      ) : transactions.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>No transactions yet</Text>
-          <TouchableOpacity
-            style={styles.addButton}
-            onPress={() => navigation.navigate("AddTransaction")}
-          >
-            <Text style={styles.addButtonText}>Add your first transaction</Text>
-          </TouchableOpacity>
-        </View>
-      ) : (
-    <FlatList
-    data={sortedTransactions}
-    renderItem={renderTransaction}
-    keyExtractor={(item) => item.id}
-    showsVerticalScrollIndicator={false}
+return (
+  <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+  <KeyboardAvoidingView
     style={{ flex: 1 }}
-    contentContainerStyle={{ paddingBottom: 20 }}
-    extraData={{ showDatePicker, showTimePicker, editDate, editingId, editCategory, editAccount, sortBy }}
-    />
-      )}
+    behavior={Platform.OS === "ios" ? "padding" : "height"}
+  >
+  <ScrollView
+    style={styles.container}
+    showsVerticalScrollIndicator={false}
+    keyboardShouldPersistTaps="handled"
+    contentContainerStyle={{ paddingBottom: 40 }}
+  >
+    <Text style={styles.heading}>Transactions</Text>
+
+    {/* Summary */}
+    <View style={styles.summaryRow}>
+      <View style={[styles.summaryCard, { backgroundColor: "#ECFDF5" }]}>
+        <Text style={styles.summaryLabel}>Income</Text>
+        <Text style={[styles.summaryValue, { color: "#10B981" }]}>
+          {totalIncome.toFixed(2)}
+        </Text>
+      </View>
+      <View style={[styles.summaryCard, { backgroundColor: "#FEF2F2" }]}>
+        <Text style={styles.summaryLabel}>Expenses</Text>
+        <Text style={[styles.summaryValue, { color: "#EF4444" }]}>
+          {totalExpenses.toFixed(2)}
+        </Text>
+      </View>
+      <View style={[styles.summaryCard, { backgroundColor: "#EEF2FF" }]}>
+        <Text style={styles.summaryLabel}>Balance</Text>
+        <Text style={[styles.summaryValue, { color: "#4F46E5" }]}>
+          {balance.toFixed(2)}
+        </Text>
       </View>
     </View>
-    </SafeAreaView>
-  );
-}
+
+    {creditOutstanding > 0 && (
+      <View style={styles.creditRow}>
+        <Text style={styles.creditLabel}>💳 Credit Card Due</Text>
+        <Text style={styles.creditValue}>{creditOutstanding.toFixed(2)}</Text>
+      </View>
+    )}
+
+    {/* Sort filters */}
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      style={styles.filterScroll}
+      contentContainerStyle={styles.filterRow}
+    >
+      {[
+        { label: "Newest", value: "date_desc" },
+        { label: "Oldest", value: "date_asc" },
+        { label: "Highest", value: "amount_desc" },
+        { label: "Lowest", value: "amount_asc" },
+        { label: "A–Z", value: "name_asc" },
+        { label: "Z–A", value: "name_desc" },
+      ].map((filter) => (
+        <TouchableOpacity
+          key={filter.value}
+          style={[styles.filterChip, sortBy === filter.value && styles.filterChipActive]}
+          onPress={() => setSortBy(filter.value)}
+        >
+          <Text
+            style={[styles.filterChipText, sortBy === filter.value && styles.filterChipTextActive]}
+          >
+            {filter.label}
+          </Text>
+        </TouchableOpacity>
+      ))}
+    </ScrollView>
+
+    {/* Transaction list */}
+    {loading ? (
+      <Text style={styles.emptyText}>Loading...</Text>
+    ) : sortedTransactions.length === 0 ? (
+      <View style={styles.emptyContainer}>
+        <Text style={styles.emptyText}>No transactions yet</Text>
+        <TouchableOpacity
+          style={styles.addButton}
+          onPress={() => navigation.navigate("AddTransaction")}
+        >
+          <Text style={styles.addButtonText}>Add your first transaction</Text>
+        </TouchableOpacity>
+      </View>
+    ) : (
+      sortedTransactions.map((item) => (
+        <View key={item.id}>{renderTransaction({ item })}</View>
+      ))
+    )}
+
+  </ScrollView>
+  </KeyboardAvoidingView>
+  </SafeAreaView>
+);}
 
 const styles = StyleSheet.create({
   container: {
-  flex: 1,
   backgroundColor: "#fff",
   padding: 16,
   paddingTop: 8,
@@ -780,5 +819,24 @@ safeArea: {
   flex: 1,
   backgroundColor: "#fff",
   paddingHorizontal: 0,
+},
+creditRow: {
+  flexDirection: "row",
+  justifyContent: "space-between",
+  alignItems: "center",
+  backgroundColor: "#FFF7ED",
+  padding: 10,
+  borderRadius: 10,
+  marginBottom: 12,
+},
+creditLabel: {
+  fontSize: 13,
+  color: "#9A3412",
+  fontWeight: "500",
+},
+creditValue: {
+  fontSize: 14,
+  color: "#EA580C",
+  fontWeight: "bold",
 },
 });

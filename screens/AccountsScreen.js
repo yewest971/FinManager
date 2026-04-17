@@ -2,6 +2,7 @@ import React, { useState, useCallback } from "react";
 import {
   View,
   ScrollView,
+  KeyboardAvoidingView,
   Text,
   TextInput,
   TouchableOpacity,
@@ -41,6 +42,8 @@ export default function AccountsScreen() {
   const [editName, setEditName] = useState("");
   const [editType, setEditType] = useState("cash");
   const [editBalance, setEditBalance] = useState("");
+  const [editLimit, setEditLimit] = useState("");
+  const [newLimit, setNewLimit] = useState("");
 
   // Transfer state
   const [showTransfer, setShowTransfer] = useState(false);
@@ -49,6 +52,9 @@ export default function AccountsScreen() {
   const [transferAmount, setTransferAmount] = useState("");
   const [transferNote, setTransferNote] = useState("");
   const [transferLoading, setTransferLoading] = useState(false);
+  const [transferFee, setTransferFee] = useState("");
+  const [transferError, setTransferError] = useState("");
+  const [addError, setAddError] = useState("");
 
   useFocusEffect(
     useCallback(() => {
@@ -97,43 +103,57 @@ export default function AccountsScreen() {
     return found ? found.icon : "💰";
   };
 
-  const handleAdd = async () => {
-    if (!name.trim()) {
-      Alert.alert("Error", "Please enter an account name");
-      return;
-    }
+    const handleAdd = async () => {
+      setAddError("");
 
-    const exists = accounts.some(
-      (acc) => acc.name.toLowerCase() === name.trim().toLowerCase()
-    );
-    if (exists) {
-      Alert.alert("Error", "This account already exists");
-      return;
-    }
+      if (!selectedType) {
+        setAddError("Please select an account type");
+        return;
+      }
 
-    try {
-      setLoading(true);
-      await addAccount({
-        name: name.trim(),
-        type: selectedType,
-        icon: getIcon(selectedType),
-      });
-      setName("");
-      setSelectedType(null);
-      loadData();
-    } catch (error) {
-      Alert.alert("Error", "Failed to add account");
-    } finally {
-      setLoading(false);
-    }
-  };
+      if (!name.trim()) {
+        setAddError("Please enter an account name");
+        return;
+      }
 
-  const startEditing = (item) => {
+      const exists = accounts.some(
+        (acc) => acc.name.toLowerCase() === name.trim().toLowerCase()
+      );
+      if (exists) {
+        setAddError("An account with this name already exists");
+        return;
+      }
+
+      try {
+        setLoading(true);
+        const accountData = {
+          name: name.trim(),
+          type: selectedType,
+          icon: getIcon(selectedType),
+        };
+
+        if (selectedType === "credit") {
+          accountData.limit = parseFloat(newLimit) || 0;
+        }
+
+        await addAccount(accountData);
+        setName("");
+        setSelectedType(null);
+        setNewLimit("");
+        loadData();
+      } catch (error) {
+        setAddError("Failed to add account");
+      } finally {
+        setLoading(false);
+      }
+};
+const startEditing = (item) => {
   const bal = balances[item.name] || 0;
   setEditingId(item.id);
   setEditName(item.name);
   setEditType(item.type);
   setEditBalance(String(bal.toFixed(2)));
+  setEditLimit(String(item.limit || 0));
 };
 
 const handleUpdate = async () => {
@@ -153,14 +173,18 @@ const handleUpdate = async () => {
     const newBalance = parseFloat(editBalance) || 0;
     const difference = newBalance - oldBalance;
 
-    // Update account details
-    await updateAccount(editingId, {
+    const updateData = {
       name: editName.trim(),
       type: editType,
       icon: getIcon(editType),
-    });
+    };
 
-    // Create adjustment transaction if balance changed
+    if (editType === "credit") {
+      updateData.limit = parseFloat(editLimit) || 0;
+    }
+
+    await updateAccount(editingId, updateData);
+
     if (difference !== 0) {
       await addTransaction({
         title: `Balance adjustment (${oldName})`,
@@ -206,73 +230,133 @@ const performDelete = async (id) => {
   }
 };
   const handleTransfer = async () => {
+    setTransferError("");
+
     if (!fromAccount || !toAccount) {
-      Alert.alert("Error", "Please select both accounts");
+      setTransferError("Please select both accounts");
       return;
     }
 
     if (fromAccount === toAccount) {
-      Alert.alert("Error", "Cannot transfer to the same account");
+      setTransferError("Cannot transfer to the same account");
       return;
     }
 
     if (!transferAmount || isNaN(parseFloat(transferAmount)) || parseFloat(transferAmount) <= 0) {
-      Alert.alert("Error", "Please enter a valid amount");
+      setTransferError("Please enter a valid amount");
       return;
     }
 
-    const amount = parseFloat(transferAmount);
-    const fromBalance = balances[fromAccount] || 0;
+const amount = parseFloat(transferAmount);
+const fromBalance = balances[fromAccount] || 0;
 
-    if (amount > fromBalance) {
-      Alert.alert("Error", `Insufficient balance in ${fromAccount} (${fromBalance.toFixed(2)})`);
-      return;
-    }
+const fromAcc = accounts.find((a) => a.name === fromAccount);
+if (fromAcc && fromAcc.type === "credit") {
+  const creditLimit = fromAcc.limit || 0;
+  const creditUsed = Math.abs(fromBalance);
+  const creditAvailable = creditLimit - creditUsed;
+  if (amount > creditAvailable) {
+    setTransferError(`Credit limit exceeded. Available: ${creditAvailable.toFixed(2)}`);
+    return;
+  }
+} else {
+  if (amount > fromBalance) {
+    setTransferError(`Insufficient balance in ${fromAccount} (${fromBalance.toFixed(2)})`);
+    return;
+  }
+}
+// Block transfer to credit card with no outstanding balance
+const toAcc = accounts.find((a) => a.name === toAccount);
+if (toAcc && toAcc.type === "credit") {
+  const toBalance = balances[toAccount] || 0;
+  const outstanding = Math.abs(toBalance);
+  if (outstanding <= 0) {
+    setTransferError(`${toAccount} has no outstanding balance to pay off`);
+    return;
+  }
+  if (amount > outstanding) {
+    setTransferError(`Payment exceeds outstanding balance (${outstanding.toFixed(2)})`);
+    return;
+  }
+}
 
-    try {
-      setTransferLoading(true);
-      const now = new Date().toISOString();
-      const note = transferNote.trim() || `Transfer: ${fromAccount} → ${toAccount}`;
+        try {
+          setTransferError("");
+          setTransferLoading(true);
+          const now = new Date().toISOString();
+          const note = transferNote.trim() || `Transfer: ${fromAccount} → ${toAccount}`;
+          const fee = parseFloat(transferFee) || 0;
 
-      // Create two transactions — one out, one in
-      await addTransaction({
-        title: note,
-        amount: amount,
-        type: "transfer_out",
-        category: "Transfer",
-        account: fromAccount,
-        date: now,
-      });
+          // Transfer out
+          await addTransaction({
+            title: note,
+            amount: amount,
+            type: "transfer_out",
+            category: "Transfer",
+            account: fromAccount,
+            date: now,
+          });
 
-      await addTransaction({
-        title: note,
-        amount: amount,
-        type: "transfer_in",
-        category: "Transfer",
-        account: toAccount,
-        date: now,
-      });
+          // Transfer in
+          await addTransaction({
+            title: note,
+            amount: amount,
+            type: "transfer_in",
+            category: "Transfer",
+            account: toAccount,
+            date: now,
+          });
 
-      setShowTransfer(false);
-      setFromAccount(null);
-      setToAccount(null);
-      setTransferAmount("");
-      setTransferNote("");
-      loadData();
-      Alert.alert("Success", `Transferred ${amount.toFixed(2)} from ${fromAccount} to ${toAccount}`);
-    } catch (error) {
-      Alert.alert("Error", "Transfer failed");
-    } finally {
-      setTransferLoading(false);
-    }
-  };
+          // Fee as a separate expense if provided
+          if (fee > 0) {
+            await addTransaction({
+              title: `Fee: ${note}`,
+              amount: fee,
+              type: "expense",
+              category: "Fees & Charges",
+              account: fromAccount,
+              date: now,
+            });
+          }
+
+          setShowTransfer(false);
+          setFromAccount(null);
+          setToAccount(null);
+          setTransferAmount("");
+          setTransferNote("");
+          setTransferFee("");
+          loadData();
+
+          const successMsg = fee > 0
+            ? `Transferred ${amount.toFixed(2)} from ${fromAccount} to ${toAccount} (fee: ${fee.toFixed(2)})`
+            : `Transferred ${amount.toFixed(2)} from ${fromAccount} to ${toAccount}`;
+
+          if (Platform.OS === "web") {
+            window.alert(successMsg);
+          } else {
+            Alert.alert("Success", successMsg);
+          }
+        } catch (error) {
+          if (Platform.OS === "web") {
+            window.alert("Transfer failed");
+          } else {
+            Alert.alert("Error", "Transfer failed");
+          }
+        } finally {
+          setTransferLoading(false);
+        }
+    };
 
   // Total balance
   const totalBalance = Object.values(balances).reduce((sum, b) => sum + b, 0);
 
 const renderAccount = ({ item }) => {
   const bal = balances[item.name] || 0;
-  const isNegative = bal < 0;
+  const isCredit = item.type === "credit";
+  const creditLimit = item.limit || 0;
+  const creditUsed = isCredit ? Math.abs(bal) : 0;
+  const creditAvailable = isCredit ? creditLimit - creditUsed : 0;
+  const isNegative = isCredit ? false : bal < 0;
   const isEditing = editingId === item.id;
 
   if (isEditing) {
@@ -309,14 +393,29 @@ const renderAccount = ({ item }) => {
           ))}
         </View>
 
-        <Text style={styles.editLabel}>Balance</Text>
-        <TextInput
-          style={styles.editInput}
-          value={editBalance}
-          onChangeText={setEditBalance}
-          placeholder="0.00"
-          keyboardType="decimal-pad"
-        />
+        {editType === "credit" ? (
+          <>
+            <Text style={styles.editLabel}>Credit Limit</Text>
+            <TextInput
+              style={styles.editInput}
+              value={editLimit}
+              onChangeText={setEditLimit}
+              placeholder="e.g. 5000"
+              keyboardType="decimal-pad"
+            />
+          </>
+        ) : (
+          <>
+            <Text style={styles.editLabel}>Balance</Text>
+            <TextInput
+              style={styles.editInput}
+              value={editBalance}
+              onChangeText={setEditBalance}
+              placeholder="0.00"
+              keyboardType="decimal-pad"
+            />
+          </>
+        )}
 
         <View style={styles.editActions}>
           <TouchableOpacity style={styles.saveButton} onPress={handleUpdate}>
@@ -335,229 +434,293 @@ const renderAccount = ({ item }) => {
 
   return (
     <View style={styles.accountCard}>
-      <View style={styles.accountLeft}>
-        <Text style={styles.accountIcon}>{item.icon}</Text>
-        <View>
-          <Text style={styles.accountName}>{item.name}</Text>
-          <Text style={styles.accountType}>{item.type}</Text>
+      <View style={styles.accountCardRow}>
+        <View style={styles.accountLeft}>
+          <Text style={styles.accountIcon}>{item.icon}</Text>
+          <View>
+            <Text style={styles.accountName}>{item.name}</Text>
+            <Text style={styles.accountType}>{item.type}</Text>
+          </View>
         </View>
-      </View>
-      <View style={styles.accountRight}>
-        <Text
-          style={[
-            styles.accountBalance,
-            { color: isNegative ? "#EF4444" : "#10B981" },
-          ]}
-        >
-          {bal.toFixed(2)}
-        </Text>
-        <View style={styles.actionRow}>
-          <TouchableOpacity onPress={() => startEditing(item)}>
-            <Text style={styles.editLink}>Edit</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => handleDelete(item.id, item.name)}>
-            <Text style={styles.deleteLink}>Delete</Text>
-          </TouchableOpacity>
+        <View style={styles.accountRight}>
+          {isCredit ? (
+            <>
+              <Text style={[styles.accountBalance, { color: "#4F46E5" }]}>
+                Limit: {creditLimit.toFixed(2)}
+              </Text>
+              <Text style={{ fontSize: 12, color: "#EF4444" }}>
+                Used: {creditUsed.toFixed(2)}
+              </Text>
+              <Text style={{ fontSize: 12, color: "#10B981" }}>
+                Available: {creditAvailable.toFixed(2)}
+              </Text>
+            </>
+          ) : (
+            <Text
+              style={[
+                styles.accountBalance,
+                { color: isNegative ? "#EF4444" : "#10B981" },
+              ]}
+            >
+              {bal.toFixed(2)}
+            </Text>
+          )}
+          <View style={styles.actionRow}>
+            <TouchableOpacity onPress={() => startEditing(item)}>
+              <Text style={styles.editLink}>Edit</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => handleDelete(item.id, item.name)}>
+              <Text style={styles.deleteLink}>Delete</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
     </View>
   );
 };
 
-  return (
-    <View style={styles.container}>
-      <Text style={styles.heading}>Accounts</Text>
+return (
+  <KeyboardAvoidingView
+    style={{ flex: 1 }}
+    behavior={Platform.OS === "ios" ? "padding" : "height"}
+  >
+  <ScrollView
+    style={styles.container}
+    showsVerticalScrollIndicator={false}
+    keyboardShouldPersistTaps="handled"
+    contentContainerStyle={{ paddingBottom: 40 }}
+  >
+    <Text style={styles.heading}>Accounts</Text>
 
-      {/* Total balance card */}
-      <View style={styles.totalCard}>
-        <Text style={styles.totalLabel}>Total Balance</Text>
-        <Text
-          style={[
-            styles.totalValue,
-            { color: totalBalance >= 0 ? "#10B981" : "#EF4444" },
-          ]}
-        >
-          {totalBalance.toFixed(2)}
-        </Text>
-      </View>
-
-      {/* Transfer button */}
-      <TouchableOpacity
-        style={styles.transferButton}
-        onPress={() => setShowTransfer(true)}
+    {/* Total balance card */}
+    <View style={styles.totalCard}>
+      <Text style={styles.totalLabel}>Total Balance</Text>
+      <Text
+        style={[
+          styles.totalValue,
+          { color: totalBalance >= 0 ? "#10B981" : "#EF4444" },
+        ]}
       >
-        <Text style={styles.transferButtonText}>↔ Transfer Between Accounts</Text>
-      </TouchableOpacity>
-
-      {/* Type picker */}
-      <Text style={styles.label}>Add new account</Text>
-      <View style={styles.typeRow}>
-        {ACCOUNT_TYPES.map((t) => (
-          <TouchableOpacity
-            key={t.value}
-            style={[
-              styles.typeChip,
-              selectedType === t.value && styles.typeChipActive,
-            ]}
-            onPress={() => setSelectedType(t.value)}
-          >
-            <Text
-              style={[
-                styles.typeChipText,
-                selectedType === t.value && styles.typeChipTextActive,
-              ]}
-            >
-              {t.icon} {t.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      {/* Name input */}
-      <View style={styles.addRow}>
-        <TextInput
-          style={styles.input}
-          placeholder="e.g. My Visa Card"
-          value={name}
-          onChangeText={setName}
-        />
-        <TouchableOpacity
-          style={[styles.addButton, loading && { opacity: 0.6 }]}
-          onPress={handleAdd}
-          disabled={loading}
-        >
-          <Text style={styles.addButtonText}>Add</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Account list */}
-      <Text style={styles.listHeading}>
-        Your accounts ({accounts.length})
+        {totalBalance.toFixed(2)}
       </Text>
+    </View>
 
-      {accounts.length === 0 ? (
-        <Text style={styles.emptyText}>Loading accounts...</Text>
-      ) : (
-        <FlatList
-          data={accounts}
-          renderItem={renderAccount}
-          keyExtractor={(item) => item.id}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: 20 }}
-        />
-      )}
+    {/* Transfer button */}
+    <TouchableOpacity
+      style={styles.transferButton}
+      onPress={() => setShowTransfer(true)}
+    >
+      <Text style={styles.transferButtonText}>↔ Transfer Between Accounts</Text>
+    </TouchableOpacity>
 
-      {/* Transfer Modal */}
-      <Modal visible={showTransfer} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Transfer Funds</Text>
+    {/* Type picker */}
+    <Text style={styles.label}>Add new account</Text>
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      style={{ marginBottom: 12, flexGrow: 0 }}
+      contentContainerStyle={{ gap: 8 }}
+    >
+      {ACCOUNT_TYPES.map((t) => (
+        <TouchableOpacity
+          key={t.value}
+          style={[
+            styles.typeChip,
+            selectedType === t.value && styles.typeChipActive,
+          ]}
+          onPress={() => setSelectedType(t.value)}
+        >
+          <Text
+            style={[
+              styles.typeChipText,
+              selectedType === t.value && styles.typeChipTextActive,
+            ]}
+          >
+            {t.icon} {t.label}
+          </Text>
+        </TouchableOpacity>
+      ))}
+    </ScrollView>
 
-            {/* From account */}
-            <Text style={styles.modalLabel}>From</Text>
-            <View style={styles.modalChipRow}>
-              {accounts.map((acc) => (
-                <TouchableOpacity
-                  key={acc.id}
-                  style={[
-                    styles.modalChip,
-                    fromAccount === acc.name && styles.modalChipActive,
-                  ]}
-                  onPress={() => setFromAccount(acc.name)}
-                >
-                  <Text
-                    style={[
-                      styles.modalChipText,
-                      fromAccount === acc.name && styles.modalChipTextActive,
-                    ]}
-                  >
-                    {acc.icon} {acc.name}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.modalChipBalance,
-                      fromAccount === acc.name && { color: "#ddd" },
-                    ]}
-                  >
-                    {(balances[acc.name] || 0).toFixed(2)}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+    {/* Credit limit input */}
+    {selectedType === "credit" && (
+      <TextInput
+        style={[styles.input, { marginBottom: 12 }]}
+        placeholder="Credit limit (e.g. 5000)"
+        placeholderTextColor="#9CA3AF"
+        value={newLimit}
+        onChangeText={setNewLimit}
+        keyboardType="decimal-pad"
+      />
+    )}
 
-            {/* To account */}
-            <Text style={styles.modalLabel}>To</Text>
-            <View style={styles.modalChipRow}>
-              {accounts.map((acc) => (
-                <TouchableOpacity
-                  key={acc.id}
-                  style={[
-                    styles.modalChip,
-                    toAccount === acc.name && styles.modalChipActive,
-                  ]}
-                  onPress={() => setToAccount(acc.name)}
-                >
-                  <Text
-                    style={[
-                      styles.modalChipText,
-                      toAccount === acc.name && styles.modalChipTextActive,
-                    ]}
-                  >
-                    {acc.icon} {acc.name}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+    {/* Name input */}
+    {addError ? <Text style={styles.errorText}>{addError}</Text> : null}
+    <View style={styles.addRow}>
+      <TextInput
+        style={styles.input}
+        placeholder="e.g. My Visa Card"
+        value={name}
+        onChangeText={setName}
+      />
+      <TouchableOpacity
+        style={[styles.addButton, loading && { opacity: 0.6 }]}
+        onPress={handleAdd}
+        disabled={loading}
+      >
+        <Text style={styles.addButtonText}>Add</Text>
+      </TouchableOpacity>
+    </View>
 
-            {/* Amount */}
-            <Text style={styles.modalLabel}>Amount</Text>
-            <TextInput
-              style={styles.modalInput}
-              placeholder="0.00"
-              value={transferAmount}
-              onChangeText={setTransferAmount}
-              keyboardType="decimal-pad"
-            />
+    {/* Account list */}
+    <Text style={styles.listHeading}>
+      Your accounts ({accounts.length})
+    </Text>
 
-            {/* Note */}
-            <Text style={styles.modalLabel}>Note (optional)</Text>
-            <TextInput
-              style={styles.modalInput}
-              placeholder="e.g. Savings deposit"
-              value={transferNote}
-              onChangeText={setTransferNote}
-            />
+    {accounts.length === 0 ? (
+      <Text style={styles.emptyText}>Loading accounts...</Text>
+    ) : (
+      accounts.map((item) => (
+        <View key={item.id}>{renderAccount({ item })}</View>
+      ))
+    )}
 
-            {/* Actions */}
-            <View style={styles.modalActions}>
+  </ScrollView>
+
+
+<Modal visible={showTransfer} transparent animationType="slide">
+  <KeyboardAvoidingView
+    style={{ flex: 1 }}
+    behavior={Platform.OS === "ios" ? "padding" : "height"}
+  >
+    <View style={styles.modalOverlay}>
+      <View style={styles.modalContent}>
+        <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+          <Text style={styles.modalTitle}>Transfer Funds</Text>
+
+          {/* From account */}
+          <Text style={styles.modalLabel}>From</Text>
+          <View style={styles.modalChipRow}>
+            {accounts.map((acc) => (
               <TouchableOpacity
-                style={[styles.modalTransferBtn, transferLoading && { opacity: 0.6 }]}
-                onPress={handleTransfer}
-                disabled={transferLoading}
+                key={acc.id}
+                style={[
+                  styles.modalChip,
+                  fromAccount === acc.name && styles.modalChipActive,
+                ]}
+                onPress={() => setFromAccount(acc.name)}
               >
-                <Text style={styles.modalTransferText}>
-                  {transferLoading ? "Transferring..." : "Transfer"}
+                <Text
+                  style={[
+                    styles.modalChipText,
+                    fromAccount === acc.name && styles.modalChipTextActive,
+                  ]}
+                >
+                  {acc.icon} {acc.name}
+                </Text>
+                <Text
+                  style={[
+                    styles.modalChipBalance,
+                    fromAccount === acc.name && { color: "#ddd" },
+                  ]}
+                >
+                  {(balances[acc.name] || 0).toFixed(2)}
                 </Text>
               </TouchableOpacity>
+            ))}
+          </View>
+
+          {/* To account */}
+          <Text style={styles.modalLabel}>To</Text>
+          <View style={styles.modalChipRow}>
+            {accounts.map((acc) => (
               <TouchableOpacity
-                style={styles.modalCancelBtn}
-                onPress={() => {
-                  setShowTransfer(false);
-                  setFromAccount(null);
-                  setToAccount(null);
-                  setTransferAmount("");
-                  setTransferNote("");
-                }}
+                key={acc.id}
+                style={[
+                  styles.modalChip,
+                  toAccount === acc.name && styles.modalChipActive,
+                ]}
+                onPress={() => setToAccount(acc.name)}
               >
+                <Text
+                  style={[
+                    styles.modalChipText,
+                    toAccount === acc.name && styles.modalChipTextActive,
+                  ]}
+                >
+                  {acc.icon} {acc.name}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {/* Amount */}
+          <Text style={styles.modalLabel}>Amount</Text>
+          <TextInput
+            style={styles.modalInput}
+            placeholder="0.00"
+            value={transferAmount}
+            onChangeText={setTransferAmount}
+            keyboardType="decimal-pad"
+          />
+
+          {/* Fee */}
+          <Text style={styles.modalLabel}>Fee (optional)</Text>
+          <TextInput
+            style={styles.modalInput}
+            placeholder="e.g. ATM fee, transfer fee"
+            placeholderTextColor="#9CA3AF"
+            value={transferFee}
+            onChangeText={setTransferFee}
+            keyboardType="decimal-pad"
+          />
+
+          {/* Note */}
+          <Text style={styles.modalLabel}>Note (optional)</Text>
+          <TextInput
+            style={styles.modalInput}
+            placeholder="e.g. Savings deposit"
+            value={transferNote}
+            onChangeText={setTransferNote}
+          />
+
+          {transferError ? <Text style={styles.transferErrorText}>{transferError}</Text> : null}
+
+          {/* Actions */}
+          <View style={styles.modalActions}>
+            <TouchableOpacity
+              style={[styles.modalTransferBtn, transferLoading && { opacity: 0.6 }]}
+              onPress={handleTransfer}
+              disabled={transferLoading}
+            >
+              <Text style={styles.modalTransferText}>
+                {transferLoading ? "Transferring..." : "Transfer"}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.modalCancelBtn}
+              onPress={() => {
+                setShowTransfer(false);
+                setFromAccount(null);
+                setToAccount(null);
+                setTransferAmount("");
+                setTransferNote("");
+                setTransferFee("");
+                setTransferError("");
+              }}
+            >
                 <Text style={styles.modalCancelText}>Cancel</Text>
               </TouchableOpacity>
             </View>
-          </View>
+          </ScrollView>
         </View>
-      </Modal>
-    </View>
+      </View>
+    </KeyboardAvoidingView>
+    </Modal>
+  </KeyboardAvoidingView>
   );
 }
+
 
 const styles = StyleSheet.create({
   container: {
@@ -605,12 +768,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#555",
     marginBottom: 8,
-  },
-  typeRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-    marginBottom: 12,
   },
   typeChip: {
     paddingHorizontal: 14,
@@ -885,5 +1042,24 @@ actionRow: {
   flexDirection: "row",
   gap: 12,
   marginTop: 4,
+},
+errorText: {
+  color: "#EF4444",
+  fontSize: 13,
+  fontWeight: "500",
+  marginBottom: 8,
+},
+transferErrorText: {
+  color: "#EF4444",
+  fontSize: 13,
+  fontWeight: "500",
+  marginTop: 12,
+  textAlign: "center",
+},
+modalContent: {
+  backgroundColor: "#fff",
+  borderRadius: 16,
+  padding: 20,
+  maxHeight: "85%",
 },
 });

@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from "react";
 import {
   View,
+  ScrollView,
   Text,
   TextInput,
   TouchableOpacity,
@@ -8,6 +9,7 @@ import {
   FlatList,
   Alert,
   Platform,
+  KeyboardAvoidingView,
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import EmojiPicker from "rn-emoji-keyboard";
@@ -129,78 +131,83 @@ const performDelete = async (id, catName) => {
     </View>
   );
 
-  return (
-    <View style={styles.container}>
-      <Text style={styles.heading}>Categories</Text>
+ return (
+  <KeyboardAvoidingView
+    style={{ flex: 1 }}
+    behavior={Platform.OS === "ios" ? "padding" : "height"}
+  >
+  <ScrollView
+    style={styles.container}
+    showsVerticalScrollIndicator={false}
+    keyboardShouldPersistTaps="handled"
+    contentContainerStyle={{ paddingBottom: 40 }}
+  >
+    <Text style={styles.heading}>Categories</Text>
 
-      {/* Add custom category */}
-      <Text style={styles.label}>Add a new category</Text>
+    {/* Add custom category */}
+    <Text style={styles.label}>Add a new category</Text>
 
-      {/* Emoji picker */}
-        <TouchableOpacity
-          style={styles.emojiPickerButton}
-          onPress={() => setShowEmojiPicker(true)}
->
-        <Text style={styles.emojiPickerEmoji}>{selectedIcon || "➕"}</Text>
-        <Text style={styles.emojiPickerLabel}>{selectedIcon ? "Tap to change icon" : "Tap to select icon"}</Text>
-        </TouchableOpacity>
+    {/* Emoji picker */}
+    <TouchableOpacity
+      style={styles.emojiPickerButton}
+      onPress={() => setShowEmojiPicker(true)}
+    >
+      <Text style={styles.emojiPickerEmoji}>{selectedIcon || "➕"}</Text>
+      <Text style={styles.emojiPickerLabel}>{selectedIcon ? "Tap to change icon" : "Tap to select icon"}</Text>
+    </TouchableOpacity>
 
-        <EmojiPicker
-          onEmojiSelected={(emoji) => {
-            setSelectedIcon(emoji.emoji);
-            setShowEmojiPicker(false);
-            setError("");
-        }}
-          open={showEmojiPicker}
-          onClose={() => setShowEmojiPicker(false)}
-        />
+    <EmojiPicker
+      onEmojiSelected={(emoji) => {
+        setSelectedIcon(emoji.emoji);
+        setShowEmojiPicker(false);
+        setError("");
+      }}
+      open={showEmojiPicker}
+      onClose={() => setShowEmojiPicker(false)}
+    />
 
-      {/* Name input */}
-      {error ? <Text style={styles.errorText}>{error}</Text> : null}
-      <View style={styles.addRow}>
-        <TextInput
-          style={styles.input}
-          placeholder="e.g. Subscriptions"
-          placeholderTextColor="#9CA3AF" 
-          value={name}
-          onChangeText={(text) => {
+    {/* Name input */}
+    {error ? <Text style={styles.errorText}>{error}</Text> : null}
+    <View style={styles.addRow}>
+      <TextInput
+        style={styles.input}
+        placeholder="e.g. Subscriptions"
+        placeholderTextColor="#9CA3AF"
+        value={name}
+        onChangeText={(text) => {
           setName(text);
           setError("");
-           }}
-          />
-
-        <TouchableOpacity
-          style={[styles.addButton, loading && { opacity: 0.6 }]}
-          onPress={handleAdd}
-          disabled={loading}
-        >
-          <Text style={styles.addButtonText}>Add</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Category list */}
-      <Text style={styles.listHeading}>
-        Categories ({categories.length})
-      </Text>
-
-      {categories.length === 0 ? (
-        <Text style={styles.emptyText}>Loading categories...</Text>
-      ) : (
-        <FlatList
-          data={categories}
-          renderItem={renderCategory}
-          keyExtractor={(item) => item.id}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: 20 }}
-        />
-      )}
+        }}
+      />
+      <TouchableOpacity
+        style={[styles.addButton, loading && { opacity: 0.6 }]}
+        onPress={handleAdd}
+        disabled={loading}
+      >
+        <Text style={styles.addButtonText}>Add</Text>
+      </TouchableOpacity>
     </View>
-  );
+
+    {/* Category list */}
+    <Text style={styles.listHeading}>
+      Categories ({categories.length})
+    </Text>
+
+    {categories.length === 0 ? (
+      <Text style={styles.emptyText}>Loading categories...</Text>
+    ) : (
+      categories.map((item) => (
+        <View key={item.id}>{renderCategory({ item })}</View>
+      ))
+    )}
+
+  </ScrollView>
+  </KeyboardAvoidingView>
+);
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
     backgroundColor: "#fff",
     padding: 24,
     paddingTop: 60,

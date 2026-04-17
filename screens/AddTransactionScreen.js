@@ -7,8 +7,10 @@ import {
   StyleSheet,
   Alert,
   ScrollView,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
-import { addTransaction, getCategories, getAccounts, initializeDefaultAccounts, addCategory } from "../services/firestoreService";
+import { addTransaction, getCategories, getAccounts, initializeDefaultAccounts, addCategory, getTransactions } from "../services/firestoreService";
 import { savePendingTransaction } from "../services/localDatabase";
 import { isOnline, syncPendingTransactions } from "../services/syncService";
 import EmojiPicker from "rn-emoji-keyboard";
@@ -21,6 +23,7 @@ export default function AddTransactionScreen({ navigation }) {
   const [categories, setCategories] = useState([]);
   const [accounts, setAccounts] = useState([]);
   const [account, setAccount] = useState(null);
+  const [balances, setBalances] = useState({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -33,19 +36,35 @@ export default function AddTransactionScreen({ navigation }) {
     loadData();
   }, []);
 
-  const loadData = async () => {
-    try {
-      await initializeDefaultAccounts();
-      const [catData, accData] = await Promise.all([
-        getCategories(),
-        getAccounts(),
-      ]);
-      setCategories(catData);
-      setAccounts(accData);
-    } catch (error) {
-      console.log("Error loading data:", error);
-    }
-  };
+const loadData = async () => {
+  try {
+    await initializeDefaultAccounts();
+    const [catData, accData, txData] = await Promise.all([
+      getCategories(),
+      getAccounts(),
+      getTransactions(),
+    ]);
+    setCategories(catData);
+    setAccounts(accData);
+
+    // Calculate balance per account
+    const bal = {};
+    accData.forEach((acc) => {
+      bal[acc.name] = 0;
+    });
+    txData.forEach((tx) => {
+      const accName = tx.account || "Cash";
+      if (bal[accName] === undefined) bal[accName] = 0;
+      if (tx.type === "income") bal[accName] += tx.amount;
+      else if (tx.type === "expense") bal[accName] -= tx.amount;
+      else if (tx.type === "transfer_out") bal[accName] -= tx.amount;
+      else if (tx.type === "transfer_in") bal[accName] += tx.amount;
+    });
+    setBalances(bal);
+  } catch (error) {
+    console.log("Error loading data:", error);
+  }
+};
 
 
   const handleAddCategory = async () => {
@@ -106,6 +125,26 @@ export default function AddTransactionScreen({ navigation }) {
       return;
     }
 
+if (type === "expense") {
+  const selectedAcc = accounts.find((a) => a.name === account);
+  if (selectedAcc && selectedAcc.type === "credit") {
+    const creditLimit = selectedAcc.limit || 0;
+    const creditUsed = Math.abs(balances[account] || 0);
+    const creditAvailable = creditLimit - creditUsed;
+    if (parseFloat(amount) > creditAvailable) {
+      setError(`Credit limit exceeded. Available: ${creditAvailable.toFixed(2)}`);
+      return;
+    }
+  } else {
+    const accountBalance = balances[account] || 0;
+    if (parseFloat(amount) > accountBalance) {
+      setError(`Insufficient balance in ${account} (${accountBalance.toFixed(2)})`);
+      return;
+    }
+  }
+}
+
+
       try {
       setLoading(true);
 
@@ -151,7 +190,11 @@ export default function AddTransactionScreen({ navigation }) {
 
 
   return (
-    <ScrollView style={styles.container}>
+    <KeyboardAvoidingView
+  style={{ flex: 1 }}
+  behavior={Platform.OS === "ios" ? "padding" : "height"}
+>
+<ScrollView style={styles.container} keyboardShouldPersistTaps="handled">
       <Text style={styles.heading}>Add Transaction</Text>
 
       {/* Type selector */}
@@ -326,6 +369,15 @@ export default function AddTransactionScreen({ navigation }) {
       ) : (
         <Text style={styles.addCategoryText}>Loading accounts...</Text>
       )}
+{account && (
+  <Text style={styles.balanceHint}>
+    {accounts.find((a) => a.name === account)?.type === "credit"
+      ? `Available credit: ${((accounts.find((a) => a.name === account)?.limit || 0) - Math.abs(balances[account] || 0)).toFixed(2)}`
+      : `Available: ${(balances[account] || 0).toFixed(2)}`
+    }
+  </Text>
+)}
+
 
      {/* Error message */}
       {error ? (
@@ -342,11 +394,18 @@ export default function AddTransactionScreen({ navigation }) {
         onPress={handleSubmit}
         disabled={loading}
       >
-        <Text style={styles.submitText}>
-          {loading ? "Adding..." : "Add Transaction"}
-        </Text>
-      </TouchableOpacity>
-    </ScrollView>
+      <Text style={styles.submitText}>
+        {loading ? "Adding..." : "Add Transaction"}
+      </Text>
+        </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.transferButton}
+            onPress={() => navigation.navigate("Accounts")}
+          >
+          <Text style={styles.transferButtonText}>↔ Transfer Between Accounts</Text>
+        </TouchableOpacity>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -450,7 +509,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: "center",
     marginTop: 32,
-    marginBottom: 40,
+    marginBottom: 12,
   },
   submitDisabled: {
     opacity: 0.6,
@@ -562,5 +621,24 @@ const styles = StyleSheet.create({
 emojiPickerLabel: {
   fontSize: 14,
   color: "#888",
+},
+balanceHint: {
+  fontSize: 12,
+  color: "#888",
+  marginTop: 4,
+},
+transferButton: {
+  backgroundColor: "#fff",
+  padding: 16,
+  borderRadius: 12,
+  alignItems: "center",
+  marginBottom: 40,
+  borderWidth: 1,
+  borderColor: "#4F46E5",
+},
+transferButtonText: {
+  color: "#4F46E5",
+  fontSize: 16,
+  fontWeight: "600",
 },
 });

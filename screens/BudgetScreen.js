@@ -9,8 +9,9 @@ import {
   FlatList,
   Alert,
   Platform,
+  KeyboardAvoidingView,
 } from "react-native";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect, DateTimePicker } from "@react-navigation/native";
 
 import {
   getBudgets,
@@ -20,12 +21,25 @@ import {
   getTransactions,
 } from "../services/firestoreService";
 
+const PERIOD_OPTIONS = [
+  { label: "Weekly", value: "weekly" },
+  { label: "Monthly", value: "monthly" },
+  { label: "Yearly", value: "yearly" },
+  { label: "Custom", value: "custom" },
+];
+
 export default function BudgetScreen({ navigation }) {
   const [budgets, setBudgets] = useState([]);
+  const [budgetName, setBudgetName] = useState("");
   const [categories, setCategories] = useState([]);
   const [spending, setSpending] = useState({});
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [limitAmount, setLimitAmount] = useState("");
+  const [budgetPeriod, setBudgetPeriod] = useState(null);
+  const [customStart, setCustomStart] = useState("");
+  const [customEnd, setCustomEnd] = useState("");
+  const [showStartPicker, setShowStartPicker] = useState(false);
+  const [showEndPicker, setShowEndPicker] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -35,44 +49,127 @@ export default function BudgetScreen({ navigation }) {
     }, [])
   );
 
-  const loadData = async () => {
-    try {
-      const [budgetData, categoryData, transactionData] = await Promise.all([
-        getBudgets(),
-        getCategories(),
-        getTransactions(),
-      ]);
-
-      setBudgets(budgetData);
-      setCategories(categoryData);
-
-      // Calculate spending per category for current month
+    const getDateRange = (period, customStart, customEnd) => {
       const now = new Date();
-      const currentMonth = now.getMonth();
-      const currentYear = now.getFullYear();
 
-      const monthlySpending = {};
-      transactionData
+      if (period === "weekly") {
+        const day = now.getDay();
+        const start = new Date(now);
+        start.setDate(now.getDate() - day);
+        start.setHours(0, 0, 0, 0);
+        const end = new Date(start);
+        end.setDate(start.getDate() + 6);
+        end.setHours(23, 59, 59, 999);
+        return { start, end };
+      }
+
+      if (period === "monthly") {
+        const start = new Date(now.getFullYear(), now.getMonth(), 1);
+        const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+        return { start, end };
+      }
+
+      if (period === "yearly") {
+        const start = new Date(now.getFullYear(), 0, 1);
+        const end = new Date(now.getFullYear(), 11, 31, 23, 59, 59, 999);
+        return { start, end };
+      }
+
+      if (period === "custom" && customStart && customEnd) {
+        return {
+          start: new Date(customStart + "T00:00:00"),
+          end: new Date(customEnd + "T23:59:59"),
+        };
+      }
+
+      return null;
+    };
+
+        {showStartPicker && (
+        <DateTimePicker
+          value={customStart ? new Date(customStart) : new Date()}
+          mode="date"
+          display="default"
+          onChange={(event, date) => {
+            setShowStartPicker(false);
+            if (date) setCustomStart(date.toISOString().split("T")[0]);
+          }}
+        />
+      )}
+
+      {showEndPicker && (
+        <DateTimePicker
+          value={customEnd ? new Date(customEnd) : new Date()}
+          mode="date"
+          display="default"
+          onChange={(event, date) => {
+            setShowEndPicker(false);
+            if (date) setCustomEnd(date.toISOString().split("T")[0]);
+          }}
+        />
+      )}
+
+const loadData = async () => {
+  try {
+    const [budgetData, categoryData, transactionData] = await Promise.all([
+      getBudgets(),
+      getCategories(),
+      getTransactions(),
+    ]);
+
+    setBudgets(budgetData);
+    setCategories(categoryData);
+
+    // Calculate spending per category per period
+    const spendingByPeriod = {};
+    budgetData.forEach((budget) => {
+      const range = getDateRange(
+        budget.period || "monthly",
+        budget.customStart,
+        budget.customEnd
+      );
+      if (!range) return;
+
+      const cat = budget.category;
+      if (!cat) return;
+
+      const spent = transactionData
         .filter((t) => {
           if (t.type !== "expense" || !t.date) return false;
           const d = new Date(t.date);
-          return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+          return t.category === cat && d >= range.start && d <= range.end;
         })
-        .forEach((t) => {
-          monthlySpending[t.category] =
-            (monthlySpending[t.category] || 0) + t.amount;
-        });
+        .reduce((sum, t) => sum + t.amount, 0);
 
-      setSpending(monthlySpending);
+      spendingByPeriod[budget.id] = spent;
+    });
 
-    } catch (error) {
-      console.log("Error loading data:", error);
-    }
-  };
+    setSpending(spendingByPeriod);
+  } catch (error) {
+    console.log("Error loading data:", error);
+  }
+};
 
 const handleAddBudget = async () => {
-  if (!selectedCategory) {
-    setError("Please select a category");
+  setError("");
+
+  if (!budgetName.trim()) {
+    setError("Please enter a budget name");
+    return;
+  }
+
+  if (!budgetPeriod) {
+    setError("Please select a budget period");
+    return;
+  }
+
+  if (budgetPeriod === "custom" && (!customStart || !customEnd)) {
+    setError("Please select start and end dates");
+    return;
+  }
+
+  if (budgetPeriod === "custom" && new Date(customStart) >= new Date(customEnd)) {
+    setError("End date must be after start date");
     return;
   }
 
@@ -81,21 +178,30 @@ const handleAddBudget = async () => {
     return;
   }
 
-  const exists = budgets.some((b) => b.category === selectedCategory);
+  const exists = budgets.some(
+    (b) => b.name && b.name.toLowerCase() === budgetName.trim().toLowerCase()
+  );
   if (exists) {
-    setError("Budget already set for this category. Delete the old one first.");
+    setError("A budget with this name already exists");
     return;
   }
 
   try {
-    setError("");
     setLoading(true);
     await setBudget({
-      category: selectedCategory,
+      name: budgetName.trim(),
+      category: selectedCategory || "",
       limit: parseFloat(limitAmount),
+      period: budgetPeriod,
+      customStart: budgetPeriod === "custom" ? customStart : "",
+      customEnd: budgetPeriod === "custom" ? customEnd : "",
     });
     setLimitAmount("");
-    setSelectedCategory("");
+    setBudgetName("");
+    setSelectedCategory(null);
+    setBudgetPeriod(null);
+    setCustomStart("");
+    setCustomEnd("");
     loadData();
   } catch (err) {
     setError("Failed to set budget");
@@ -131,147 +237,267 @@ const performDelete = async (id) => {
   }
 };
 
-  const renderBudget = ({ item }) => {
-    const spent = spending[item.category] || 0;
-    const percentage = Math.min((spent / item.limit) * 100, 100);
-    const isOver = spent > item.limit;
-    const isWarning = percentage >= 80 && !isOver;
+const renderBudget = ({ item }) => {
+  const spent = spending[item.id] || 0;
+  const percentage = Math.min((spent / item.limit) * 100, 100);
+  const isOver = spent > item.limit;
+  const isWarning = percentage >= 80 && !isOver;
 
-    let barColor = "#4F46E5";
-    if (isOver) barColor = "#EF4444";
-    else if (isWarning) barColor = "#F59E0B";
+  let barColor = "#4F46E5";
+  if (isOver) barColor = "#EF4444";
+  else if (isWarning) barColor = "#F59E0B";
 
-    return (
-      <View style={styles.budgetCard}>
-        <View style={styles.budgetTop}>
-          <Text style={styles.budgetCategory}>{item.category}</Text>
-          <TouchableOpacity onPress={() => handleDelete(item.id, item.category)}>
-            <Text style={styles.deleteLink}>Delete</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.budgetNumbers}>
-          <Text style={styles.budgetSpent}>
-            Spent:{" "}
-            <Text style={{ color: isOver ? "#EF4444" : "#1a1a1a" }}>
-              {spent.toFixed(2)}
-            </Text>
-          </Text>
-          <Text style={styles.budgetLimit}>Limit: {item.limit.toFixed(2)}</Text>
-        </View>
-
-        {/* Progress bar */}
-        <View style={styles.progressTrack}>
-          <View
-            style={[
-              styles.progressFill,
-              { width: `${percentage}%`, backgroundColor: barColor },
-            ]}
-          />
-        </View>
-
-        {isWarning && (
-          <Text style={styles.warningText}>
-            ⚠️ You've used {Math.round(percentage)}% of this budget
-          </Text>
-        )}
-        {isOver && (
-          <Text style={styles.overText}>
-            🚨 Over budget by {(spent - item.limit).toFixed(2)}
-          </Text>
-        )}
-      </View>
-    );
-  };
+  const periodLabel = item.period === "custom"
+    ? `${item.customStart} → ${item.customEnd}`
+    : item.period
+      ? item.period.charAt(0).toUpperCase() + item.period.slice(1)
+      : "Monthly";
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.heading}>Budgets</Text>
+    <View style={styles.budgetCard}>
+      <View style={styles.budgetTop}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.budgetCategory}>{item.name || item.category}</Text>
+          <Text style={{ fontSize: 12, color: "#888", marginTop: 2 }}>
+            {periodLabel}{item.category ? ` · ${item.category}` : ""}
+          </Text>
+        </View>
+        <TouchableOpacity onPress={() => handleDelete(item.id, item.name || item.category)}>
+          <Text style={styles.deleteLink}>Delete</Text>
+        </TouchableOpacity>
+      </View>
 
-      {/* Category selector */}
-      <Text style={styles.label}>Category</Text>
-  {categories.length > 0 ? (
-  <ScrollView
-    horizontal
-    showsHorizontalScrollIndicator={false}
-    style={styles.categoryScroll}
-  >
-    <View style={styles.categoryGrid}>
-      <TouchableOpacity
-        style={styles.addChip}
-        onPress={() => navigation.navigate("Categories")}
-      >
-        <Text style={styles.addChipText}>+ New</Text>
-      </TouchableOpacity>
-      {categories.map((cat) => (
-        <TouchableOpacity
-          key={cat.id}
+      <View style={styles.budgetNumbers}>
+        <Text style={styles.budgetSpent}>
+          Spent:{" "}
+          <Text style={{ color: isOver ? "#EF4444" : "#1a1a1a" }}>
+            {spent.toFixed(2)}
+          </Text>
+        </Text>
+        <Text style={styles.budgetLimit}>Limit: {item.limit.toFixed(2)}</Text>
+      </View>
+
+      <View style={styles.progressTrack}>
+        <View
           style={[
-            styles.chip,
-            selectedCategory === cat.name && styles.chipActive,
+            styles.progressFill,
+            { width: `${percentage}%`, backgroundColor: barColor },
           ]}
-          onPress={() => setSelectedCategory(cat.name)}
+        />
+      </View>
+
+      {isWarning && (
+        <Text style={styles.warningText}>
+          ⚠️ You've used {Math.round(percentage)}% of this budget
+        </Text>
+      )}
+      {isOver && (
+        <Text style={styles.overText}>
+          🚨 Over budget by {(spent - item.limit).toFixed(2)}
+        </Text>
+      )}
+    </View>
+  );
+};
+
+  return (
+  <KeyboardAvoidingView
+    style={{ flex: 1 }}
+    behavior={Platform.OS === "ios" ? "padding" : "height"}
+  >
+  <ScrollView
+    style={styles.container}
+    showsVerticalScrollIndicator={false}
+    keyboardShouldPersistTaps="handled"
+    contentContainerStyle={{ paddingBottom: 40 }}
+  >
+    <Text style={styles.heading}>Budgets</Text>
+
+    {/* Budget name */}
+    <Text style={styles.label}>Budget name</Text>
+    <TextInput
+      style={[styles.input, { marginBottom: 12 }]}
+      placeholder="e.g. Monthly Groceries, Travel Fund"
+      placeholderTextColor="#9CA3AF"
+      value={budgetName}
+      onChangeText={(text) => {
+        setBudgetName(text);
+        setError("");
+      }}
+    />
+
+    {/* Category selector (optional) */}
+    <Text style={styles.label}>Category (optional)</Text>
+    {categories.length > 0 ? (
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.categoryScroll}
+        contentContainerStyle={styles.categoryGrid}
+      >
+        <TouchableOpacity
+          style={styles.addChip}
+          onPress={() => navigation.navigate("Categories")}
+        >
+          <Text style={styles.addChipText}>+ New</Text>
+        </TouchableOpacity>
+        {categories.map((cat) => (
+          <TouchableOpacity
+            key={cat.id}
+            style={[
+              styles.chip,
+              selectedCategory === cat.name && styles.chipActive,
+            ]}
+            onPress={() =>
+              setSelectedCategory(
+                selectedCategory === cat.name ? null : cat.name
+              )
+            }
+          >
+            <Text
+              style={[
+                styles.chipText,
+                selectedCategory === cat.name && styles.chipTextActive,
+              ]}
+            >
+              {cat.icon} {cat.name}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+    ) : (
+      <Text style={styles.emptyText}>Add categories first</Text>
+    )}
+
+      {/* Period selector */}
+    <Text style={styles.label}>Budget period</Text>
+    <View style={styles.periodRow}>
+      {PERIOD_OPTIONS.map((opt) => (
+        <TouchableOpacity
+          key={opt.value}
+          style={[
+            styles.periodChip,
+            budgetPeriod === opt.value && styles.periodChipActive,
+          ]}
+          onPress={() => {
+            setBudgetPeriod(opt.value);
+            if (opt.value !== "custom") {
+              setCustomStart("");
+              setCustomEnd("");
+            }
+          }}
         >
           <Text
             style={[
-              styles.chipText,
-              selectedCategory === cat.name && styles.chipTextActive,
+              styles.periodChipText,
+              budgetPeriod === opt.value && styles.periodChipTextActive,
             ]}
           >
-            {cat.icon} {cat.name}
+            {opt.label}
           </Text>
         </TouchableOpacity>
       ))}
     </View>
-  </ScrollView>
-) : (
-  <Text style={styles.emptyText}>Add categories first</Text>
-)}
 
-      {/* Limit input */}
-      <Text style={styles.label}>Monthly limit</Text>
-      {error ? <Text style={styles.errorText}>{error}</Text> : null}
-      <View style={styles.addRow}>
-        <TextInput
-          style={styles.input}
-          placeholder="e.g. 500"
-          placeholderTextColor="#9CA3AF"
-          value={limitAmount}
-          onChangeText={setLimitAmount}
-          keyboardType="decimal-pad"
-        />
-        <TouchableOpacity
-          style={[styles.addButton, loading && { opacity: 0.6 }]}
-          onPress={handleAddBudget}
-          disabled={loading}
-        >
-          <Text style={styles.addButtonText}>Set</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Budget list */}
-      <Text style={styles.listHeading}>
-        Your budgets ({budgets.length})
-      </Text>
-
-      {budgets.length === 0 ? (
-        <Text style={styles.emptyText}>No budgets set yet</Text>
+ {budgetPeriod === "custom" && (
+      Platform.OS === "web" ? (
+        <View style={styles.dateRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.dateLabel}>Start</Text>
+            <input
+              type="date"
+              value={customStart}
+              onChange={(e) => setCustomStart(e.target.value)}
+              style={{
+                width: "100%",
+                padding: 12,
+                borderRadius: 12,
+                border: "1px solid #ddd",
+                fontSize: 14,
+                backgroundColor: "#f9f9f9",
+              }}
+            />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.dateLabel}>End</Text>
+            <input
+              type="date"
+              value={customEnd}
+              onChange={(e) => setCustomEnd(e.target.value)}
+              style={{
+                width: "100%",
+                padding: 12,
+                borderRadius: 12,
+                border: "1px solid #ddd",
+                fontSize: 14,
+                backgroundColor: "#f9f9f9",
+              }}
+            />
+          </View>
+        </View>
       ) : (
-        <FlatList
-          data={budgets}
-          renderItem={renderBudget}
-          keyExtractor={(item) => item.id}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: 20 }}
-        />
-      )}
+        <View style={styles.dateRow}>
+          <TouchableOpacity
+            style={styles.dateButton}
+            onPress={() => setShowStartPicker(true)}
+          >
+            <Text style={styles.dateButtonText}>
+              {customStart ? `Start: ${customStart}` : "📅 Pick start date"}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.dateButton}
+            onPress={() => setShowEndPicker(true)}
+          >
+            <Text style={styles.dateButtonText}>
+              {customEnd ? `End: ${customEnd}` : "📅 Pick end date"}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )
+    )}
+
+    {/* Limit input */}
+    <Text style={styles.label}>Monthly limit</Text>
+    {error ? <Text style={styles.errorText}>{error}</Text> : null}
+    <View style={styles.addRow}>
+      <TextInput
+        style={styles.input}
+        placeholder="e.g. 500"
+        placeholderTextColor="#9CA3AF"
+        value={limitAmount}
+        onChangeText={setLimitAmount}
+        keyboardType="decimal-pad"
+      />
+      <TouchableOpacity
+        style={[styles.addButton, loading && { opacity: 0.6 }]}
+        onPress={handleAddBudget}
+        disabled={loading}
+      >
+        <Text style={styles.addButtonText}>Set</Text>
+      </TouchableOpacity>
     </View>
+
+    {/* Budget list */}
+    <Text style={styles.listHeading}>
+      Your budgets ({budgets.length})
+    </Text>
+
+    {budgets.length === 0 ? (
+      <Text style={styles.emptyText}>No budgets set yet</Text>
+    ) : (
+      budgets.map((item) => (
+        <View key={item.id}>{renderBudget({ item })}</View>
+      ))
+    )}
+
+  </ScrollView>
+  </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
     backgroundColor: "#fff",
     padding: 24,
     paddingTop: 60,
@@ -433,5 +659,56 @@ addChipText: {
   fontSize: 13,
   fontWeight: "500",
   marginBottom: 8,
+},
+periodRow: {
+  flexDirection: "row",
+  gap: 8,
+  marginBottom: 12,
+},
+periodChip: {
+  flex: 1,
+  padding: 10,
+  borderRadius: 12,
+  borderWidth: 1,
+  borderColor: "#ddd",
+  alignItems: "center",
+  backgroundColor: "#f9f9f9",
+},
+periodChipActive: {
+  backgroundColor: "#4F46E5",
+  borderColor: "#4F46E5",
+},
+periodChipText: {
+  fontSize: 13,
+  color: "#555",
+  fontWeight: "500",
+},
+periodChipTextActive: {
+  color: "#fff",
+  fontWeight: "600",
+},
+dateRow: {
+  flexDirection: "row",
+  gap: 10,
+  marginBottom: 12,
+},
+dateLabel: {
+  fontSize: 12,
+  color: "#555",
+  fontWeight: "500",
+  marginBottom: 4,
+},
+dateButton: {
+  flex: 1,
+  padding: 12,
+  borderRadius: 12,
+  borderWidth: 1,
+  borderColor: "#ddd",
+  backgroundColor: "#f9f9f9",
+  alignItems: "center",
+},
+dateButtonText: {
+  fontSize: 13,
+  color: "#555",
 },
 });

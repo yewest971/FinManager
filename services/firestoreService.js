@@ -128,7 +128,7 @@ export const deleteBudget = async (id) => {
 export const DEFAULT_ACCOUNTS = [
   { name: "Cash", type: "cash", icon: "💵" },
   { name: "Bank Account", type: "bank", icon: "🏦" },
-  { name: "Credit Card", type: "credit", icon: "💳" },
+  { name: "Credit Card", type: "credit", icon: "💳", limit: 0 },
 ];
 
 export const addAccount = async (account) => {
