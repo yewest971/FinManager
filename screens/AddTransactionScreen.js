@@ -11,6 +11,7 @@ import {
   Platform,
 } from "react-native";
 import { addTransaction, getCategories, getAccounts, initializeDefaultAccounts, addCategory, getTransactions } from "../services/firestoreService";
+import { checkBudgetAlerts } from "../services/budgetChecker";
 import { savePendingTransaction } from "../services/localDatabase";
 import { isOnline, syncPendingTransactions } from "../services/syncService";
 import EmojiPicker from "rn-emoji-keyboard";
@@ -174,10 +175,26 @@ if (type === "expense") {
 
       if (online) {
         setSuccess("");
-        Alert.alert("Success", "Transaction added!", [
-          { text: "OK", onPress: () => navigation.goBack() },
-        ]);
-      } else {
+
+        // Check budget alerts
+        const alerts = await checkBudgetAlerts(transactionData);
+        if (alerts.length > 0) {
+          const msg = alerts.map((a) =>
+            a.type === "over"
+              ? `🚨 ${a.name}: Over budget! ${a.percentage}% used`
+              : `⚠️ ${a.name}: ${a.percentage}% used`
+          ).join("\n");
+
+          Alert.alert("Transaction Added", `Budget alerts:\n\n${msg}`, [
+            { text: "OK", onPress: () => navigation.goBack() },
+          ]);
+        } else {
+          Alert.alert("Success", "Transaction added!", [
+            { text: "OK", onPress: () => navigation.goBack() },
+          ]);
+        }
+      }
+        else {
         setSuccess("Saved offline — will sync when you're back online.");
       }
 

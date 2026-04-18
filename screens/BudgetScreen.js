@@ -11,7 +11,8 @@ import {
   Platform,
   KeyboardAvoidingView,
 } from "react-native";
-import { useFocusEffect, DateTimePicker } from "@react-navigation/native";
+import { useFocusEffect} from "@react-navigation/native";
+import DateTimePicker from "@react-native-community/datetimepicker";
 
 import {
   getBudgets,
@@ -85,30 +86,6 @@ export default function BudgetScreen({ navigation }) {
       return null;
     };
 
-        {showStartPicker && (
-        <DateTimePicker
-          value={customStart ? new Date(customStart) : new Date()}
-          mode="date"
-          display="default"
-          onChange={(event, date) => {
-            setShowStartPicker(false);
-            if (date) setCustomStart(date.toISOString().split("T")[0]);
-          }}
-        />
-      )}
-
-      {showEndPicker && (
-        <DateTimePicker
-          value={customEnd ? new Date(customEnd) : new Date()}
-          mode="date"
-          display="default"
-          onChange={(event, date) => {
-            setShowEndPicker(false);
-            if (date) setCustomEnd(date.toISOString().split("T")[0]);
-          }}
-        />
-      )}
-
 const loadData = async () => {
   try {
     const [budgetData, categoryData, transactionData] = await Promise.all([
@@ -120,31 +97,35 @@ const loadData = async () => {
     setBudgets(budgetData);
     setCategories(categoryData);
 
-    // Calculate spending per category per period
-    const spendingByPeriod = {};
+    const spendingByBudget = {};
+
     budgetData.forEach((budget) => {
       const range = getDateRange(
         budget.period || "monthly",
-        budget.customStart,
-        budget.customEnd
+        budget.customStart || "",
+        budget.customEnd || ""
       );
-      if (!range) return;
+      if (!range) {
+        spendingByBudget[budget.id] = 0;
+        return;
+      }
 
-      const cat = budget.category;
-      if (!cat) return;
+      const cat = budget.category || "";
 
-      const spent = transactionData
-        .filter((t) => {
-          if (t.type !== "expense" || !t.date) return false;
-          const d = new Date(t.date);
-          return t.category === cat && d >= range.start && d <= range.end;
-        })
-        .reduce((sum, t) => sum + t.amount, 0);
+      let total = 0;
+      for (const t of transactionData) {
+        if (t.type !== "expense") continue;
+        if (!t.date) continue;
+        const d = new Date(t.date);
+        if (d < range.start || d > range.end) continue;
+        if (cat && t.category !== cat) continue;
+        total += t.amount;
+      }
 
-      spendingByPeriod[budget.id] = spent;
+      spendingByBudget[budget.id] = total;
     });
 
-    setSpending(spendingByPeriod);
+    setSpending(spendingByBudget);
   } catch (error) {
     console.log("Error loading data:", error);
   }
@@ -457,8 +438,32 @@ const renderBudget = ({ item }) => {
       )
     )}
 
+    {Platform.OS !== "web" && showStartPicker && (
+      <DateTimePicker
+        value={customStart ? new Date(customStart) : new Date()}
+        mode="date"
+        display="default"
+        onChange={(event, date) => {
+          setShowStartPicker(false);
+          if (date) setCustomStart(date.toISOString().split("T")[0]);
+        }}
+      />
+    )}
+
+    {Platform.OS !== "web" && showEndPicker && (
+      <DateTimePicker
+        value={customEnd ? new Date(customEnd) : new Date()}
+        mode="date"
+        display="default"
+        onChange={(event, date) => {
+          setShowEndPicker(false);
+          if (date) setCustomEnd(date.toISOString().split("T")[0]);
+        }}
+      />
+    )}
+
     {/* Limit input */}
-    <Text style={styles.label}>Monthly limit</Text>
+    <Text style={styles.label}>Limit</Text>
     {error ? <Text style={styles.errorText}>{error}</Text> : null}
     <View style={styles.addRow}>
       <TextInput
