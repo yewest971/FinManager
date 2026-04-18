@@ -39,33 +39,31 @@
         loadData();
       }, []);
 
-      const loadData = async () => {
-        try {
-          await initializeDefaultAccounts();
-          const [catData, accData, txData] = await Promise.all([
-            getCategories(),
-            getAccounts(),
-            getTransactions(),
-          ]);
-          setCategories(catData);
-          setAccounts(accData);
+              const loadData = async () => {
+                try {
+                  const [catData, accData, txData] = await Promise.all([
+                    getCategories(),
+                    getAccounts(),
+                    getTransactions(),
+                  ]);
+                  setCategories(catData);
+                  setAccounts(accData);
 
-          const bal = {};
-          accData.forEach((acc) => { bal[acc.name] = 0; });
-          txData.forEach((tx) => {
-            const accName = tx.account || "Cash";
-            if (bal[accName] === undefined) bal[accName] = 0;
-            if (tx.type === "income") bal[accName] += tx.amount;
-            else if (tx.type === "expense") bal[accName] -= tx.amount;
-            else if (tx.type === "transfer_out") bal[accName] -= tx.amount;
-            else if (tx.type === "transfer_in") bal[accName] += tx.amount;
-          });
-          setBalances(bal);
-        } catch (error) {
-          console.log("Error loading data:", error);
-        }
-      };
-
+                  const bal = {};
+                  accData.forEach((acc) => { bal[acc.name] = 0; });
+                  txData.forEach((tx) => {
+                    const accName = tx.account || "Cash";
+                    if (bal[accName] === undefined) bal[accName] = 0;
+                    if (tx.type === "income") bal[accName] += tx.amount;
+                    else if (tx.type === "expense") bal[accName] -= tx.amount;
+                    else if (tx.type === "transfer_out") bal[accName] -= tx.amount;
+                    else if (tx.type === "transfer_in") bal[accName] += tx.amount;
+                  });
+                  setBalances(bal);
+                } catch (error) {
+                  console.log("Error loading data:", error);
+                }
+              };
       const handleAddCategory = async () => {
         if (!newCategoryIcon) {
           setError("Please select an icon for the category");
@@ -274,7 +272,7 @@
               <Text style={s.submitText}>{loading ? "Adding..." : "Add Transaction"}</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={[s.transferButton, { borderColor: colors.primary }]} onPress={() => navigation.navigate("Accounts")}>
+            <TouchableOpacity style={[s.transferButton, { borderColor: colors.primary }]} onPress={() => navigation.navigate("Home", { screen: "Accounts" })}>
               <Text style={[s.transferButtonText, { color: colors.primary }]}>↔ Transfer Between Accounts</Text>
             </TouchableOpacity>
           </ScrollView>
