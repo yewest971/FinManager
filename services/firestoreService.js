@@ -168,17 +168,25 @@
       return await deleteDoc(ref);
     };
 
-    export const initializeDefaultAccounts = async () => {
-      const user = auth.currentUser;
-      if (!user) throw new Error("Not logged in");
+let accountsInitialized = false;
 
-      const existing = await getAccounts();
-      if (existing.length > 0) return;
+export const initializeDefaultAccounts = async () => {
+  if (accountsInitialized) return;
+  
+  const user = auth.currentUser;
+  if (!user) throw new Error("Not logged in");
 
-      for (const acc of DEFAULT_ACCOUNTS) {
-        await addAccount(acc);
-      }
-    };
+  const existing = await getAccounts();
+  if (existing.length > 0) {
+    accountsInitialized = true;
+    return;
+  }
+
+  for (const acc of DEFAULT_ACCOUNTS) {
+    await addAccount(acc);
+  }
+  accountsInitialized = true;
+};
 
     // ============ DEFAULT CATEGORIES ============
 

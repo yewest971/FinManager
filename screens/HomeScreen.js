@@ -8,7 +8,7 @@ import {
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { auth } from "../config/firebase";
-import { getTransactions, getAccounts } from "../services/firestoreService";
+import { getTransactions, getAccounts, initializeDefaultAccounts } from "../services/firestoreService";
 import { getAllBudgetStatuses } from "../services/budgetChecker";
 import { useTheme } from "../context/ThemeContext";
 import Svg, { Circle, Rect, Text as SvgText, G, Line } from "react-native-svg";
@@ -35,6 +35,7 @@ export default function HomeScreen({ navigation }) {
   const loadData = async () => {
     try {
       setLoading(true);
+      await initializeDefaultAccounts();
       const [txData, accData, alerts] = await Promise.all([
         getTransactions(),
         getAccounts(),
@@ -342,28 +343,55 @@ export default function HomeScreen({ navigation }) {
 
       {/* Account balances */}
       <View style={s.chartSection}>
-        <View style={s.sectionHeader}>
-          <Text style={[s.sectionTitle, { color: colors.text }]}>Account Balances</Text>
-          <TouchableOpacity onPress={() => navigation.navigate("Accounts")}>
-            <Text style={[s.seeAll, { color: colors.primary }]}>Manage</Text>
-          </TouchableOpacity>
-        </View>
-        {accounts.map((acc) => {
-          const bal = accountBalances[acc.name] || 0;
-          const isCredit = acc.type === "credit";
-          return (
-            <View key={acc.id} style={[s.accountRow, { borderBottomColor: colors.border }]}>
-              <View style={s.accountInfo}>
-                <Text style={s.accountIconText}>{acc.icon}</Text>
-                <Text style={[s.accountName, { color: colors.text }]}>{acc.name}</Text>
+        <Text style={[s.sectionTitle, { color: colors.text }]}>Account Balances</Text>
+        {accounts
+          .filter((acc) => acc.type !== "credit")
+          .sort((a, b) => (accountBalances[b.name] || 0) - (accountBalances[a.name] || 0))
+          .map((acc) => {
+            const bal = accountBalances[acc.name] || 0;
+            return (
+              <View key={acc.id} style={[s.accountRow, { borderBottomColor: colors.border }]}>
+                <View style={s.accountInfo}>
+                  <Text style={s.accountIconText}>{acc.icon}</Text>
+                  <Text style={[s.accountName, { color: colors.text }]}>{acc.name}</Text>
+                </View>
+                <Text style={[s.accountBal, { color: bal >= 0 ? colors.income : colors.expense }]}>
+                  {bal.toFixed(2)}
+                </Text>
               </View>
-              <Text style={[s.accountBal, { color: isCredit ? colors.primary : bal >= 0 ? colors.income : colors.expense }]}>
-                {isCredit ? `${Math.abs(bal).toFixed(2)} used` : bal.toFixed(2)}
-              </Text>
-            </View>
-          );
-        })}
+            );
+          })}
       </View>
+
+      {/* Credit cards */}
+      {accounts.filter((acc) => acc.type === "credit").length > 0 && (
+        <View style={s.chartSection}>
+          <Text style={[s.sectionTitle, { color: colors.text }]}>Credit Cards</Text>
+          {accounts
+            .filter((acc) => acc.type === "credit")
+            .sort((a, b) => {
+              const aAvail = (a.limit || 0) - Math.abs(accountBalances[a.name] || 0);
+              const bAvail = (b.limit || 0) - Math.abs(accountBalances[b.name] || 0);
+              return aAvail - bAvail;
+            })
+            .map((acc) => {
+              const bal = accountBalances[acc.name] || 0;
+              const used = Math.abs(bal);
+              const limit = acc.limit || 0;
+              return (
+                <View key={acc.id} style={[s.accountRow, { borderBottomColor: colors.border }]}>
+                  <View style={s.accountInfo}>
+                    <Text style={s.accountIconText}>{acc.icon}</Text>
+                    <Text style={[s.accountName, { color: colors.text }]}>{acc.name}</Text>
+                  </View>
+                  <Text style={[s.accountBal, { color: colors.primary }]}>
+                    {used.toFixed(2)}/{limit.toFixed(0)} used
+                  </Text>
+                </View>
+              );
+            })}
+        </View>
+      )}
 
       {/* Pie chart */}
       {renderPieChart()}
