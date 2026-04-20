@@ -9,6 +9,7 @@
       import { syncPendingTransactions } from "./services/syncService";
       import { SafeAreaProvider } from "react-native-safe-area-context";
       import { ThemeProvider, useTheme } from "./context/ThemeContext";
+      import { requestNotificationPermission } from "./services/notificationService";
       import NetInfo from "@react-native-community/netinfo";
 
       import LoginScreen from "./screens/LoginScreen";
@@ -19,6 +20,8 @@
       import CategoriesScreen from "./screens/CategoriesScreen";
       import BudgetScreen from "./screens/BudgetScreen";
       import AccountsScreen from "./screens/AccountsScreen";
+      import SavingsGoalsScreen from "./screens/SavingsGoalsScreen";
+      import ReportsScreen from "./screens/ReportsScreen";
       import SettingsScreen from "./screens/SettingsScreen";
 
       const Stack = createNativeStackNavigator();
@@ -33,6 +36,8 @@
             <HomeStack.Screen name="Budgets" component={BudgetScreen} />
             <HomeStack.Screen name="Categories" component={CategoriesScreen} />
             <HomeStack.Screen name="Settings" component={SettingsScreen} />
+            <HomeStack.Screen name="SavingsGoals" component={SavingsGoalsScreen} />
+            <HomeStack.Screen name="Reports" component={ReportsScreen} />
           </HomeStack.Navigator>
         );
       }
@@ -104,6 +109,7 @@
           });
 
           initDatabase();
+          requestNotificationPermission();
 
           const netUnsubscribe = NetInfo.addEventListener((state) => {
             if (state.isConnected) {

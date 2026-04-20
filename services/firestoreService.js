@@ -276,6 +276,44 @@ export const initializeDefaultAccounts = async () => {
       }
     };
 
+          // ============ SAVINGS GOALS ============
+
+      export const addGoal = async (goal) => {
+        const user = auth.currentUser;
+        if (!user) throw new Error("Not logged in");
+
+        return await addDoc(collection(db, "goals"), {
+          ...goal,
+          userId: user.uid,
+          createdAt: serverTimestamp(),
+        });
+      };
+
+      export const getGoals = async () => {
+        const user = auth.currentUser;
+        if (!user) throw new Error("Not logged in");
+
+        const q = query(
+          collection(db, "goals"),
+          where("userId", "==", user.uid)
+        );
+
+        const snapshot = await getDocs(q);
+        return snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+      };
+
+      export const updateGoal = async (id, updates) => {
+        const ref = doc(db, "goals", id);
+        return await updateDoc(ref, updates);
+      };
+
+      export const deleteGoal = async (id) => {
+        const ref = doc(db, "goals", id);
+        return await deleteDoc(ref);
+      };
 
     // ============ SETTINGS ============
 

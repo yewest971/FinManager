@@ -15,6 +15,7 @@
     import { isOnline, syncPendingTransactions } from "../services/syncService";
     import { checkBudgetAlerts } from "../services/budgetChecker";
     import { useTheme } from "../context/ThemeContext";
+    import { sendBudgetAlerts } from "../services/notificationService";
     import EmojiPicker from "rn-emoji-keyboard";
 
     export default function AddTransactionScreen({ navigation }) {
@@ -151,6 +152,9 @@
             setSuccess("");
             const alerts = await checkBudgetAlerts(transactionData);
             if (alerts.length > 0) {
+              // Send push/web notification
+              await sendBudgetAlerts(alerts);
+
               const msg = alerts.map((a) =>
                 a.type === "over"
                   ? `🚨 ${a.name}: Over budget! ${a.percentage}% used`

@@ -5,10 +5,11 @@ import {
   TouchableOpacity,
   StyleSheet,
   ScrollView,
+  useWindowDimensions,
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { auth } from "../config/firebase";
-import { getTransactions, getAccounts, initializeDefaultAccounts } from "../services/firestoreService";
+import { getTransactions, getAccounts, initializeDefaultAccounts, getGoals } from "../services/firestoreService";
 import { getAllBudgetStatuses } from "../services/budgetChecker";
 import { useTheme } from "../context/ThemeContext";
 import Svg, { Circle, Rect, Text as SvgText, G, Line } from "react-native-svg";
@@ -21,9 +22,12 @@ const CHART_COLORS = [
 
 export default function HomeScreen({ navigation }) {
   const { colors } = useTheme();
+  const { width: screenWidth } = useWindowDimensions();
+  const isWide = screenWidth > 600;
   const [transactions, setTransactions] = useState([]);
   const [accounts, setAccounts] = useState([]);
   const [budgetAlerts, setBudgetAlerts] = useState([]);
+  const [savingsGoals, setSavingsGoals] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useFocusEffect(
@@ -36,14 +40,16 @@ export default function HomeScreen({ navigation }) {
     try {
       setLoading(true);
       await initializeDefaultAccounts();
-      const [txData, accData, alerts] = await Promise.all([
+      const [txData, accData, alerts, goalsData] = await Promise.all([
         getTransactions(),
         getAccounts(),
         getAllBudgetStatuses(),
+        getGoals(),
       ]);
       setTransactions(txData);
       setAccounts(accData);
       setBudgetAlerts(alerts);
+      setSavingsGoals(goalsData);
     } catch (error) {
       console.log("Error loading dashboard:", error);
     } finally {
@@ -129,111 +135,126 @@ export default function HomeScreen({ navigation }) {
     .slice(0, 5);
 
   // Pie chart
-  const renderPieChart = () => {
-    if (categoryData.length === 0) {
-      return <Text style={[s.emptyChart, { color: colors.textMuted }]}>No expenses this month</Text>;
-    }
+const renderPieChart = () => {
+  if (categoryData.length === 0) {
+    return <Text style={[s.emptyChart, { color: colors.textMuted }]}>No expenses this month</Text>;
+  }
 
-    const total = categoryData.reduce((sum, c) => sum + c.amount, 0);
-    const circumference = 2 * Math.PI * 70;
-    let cumulativePercent = 0;
+  const total = categoryData.reduce((sum, c) => sum + c.amount, 0);
+  const pieSize = isWide ? 280 : 200;
+  const radius = isWide ? 100 : 70;
+  const strokeW = isWide ? 40 : 30;
+  const center = pieSize / 2;
+  const circumference = 2 * Math.PI * radius;
+  let cumulativePercent = 0;
 
-    const donutSlices = categoryData.map((cat, i) => {
-      const percent = cat.amount / total;
-      const offset = circumference * (1 - cumulativePercent);
-      const dashLength = circumference * percent;
-      cumulativePercent += percent;
-
-      return (
-        <Circle
-          key={cat.name}
-          cx="100"
-          cy="100"
-          r="70"
-          fill="none"
-          stroke={CHART_COLORS[i % CHART_COLORS.length]}
-          strokeWidth="30"
-          strokeDasharray={`${dashLength} ${circumference - dashLength}`}
-          strokeDashoffset={offset}
-          transform="rotate(-90 100 100)"
-        />
-      );
-    });
+  const donutSlices = categoryData.map((cat, i) => {
+    const percent = cat.amount / total;
+    const offset = circumference * (1 - cumulativePercent);
+    const dashLength = circumference * percent;
+    cumulativePercent += percent;
 
     return (
-      <View style={s.chartSection}>
-        <Text style={[s.sectionTitle, { color: colors.text }]}>Spending by Category</Text>
-        <View style={s.pieContainer}>
-          <Svg width={200} height={200} viewBox="0 0 200 200">
-            {donutSlices}
-            <SvgText x="100" y="95" textAnchor="middle" fontSize="18" fontWeight="bold" fill={colors.text}>
-              {total.toFixed(0)}
-            </SvgText>
-            <SvgText x="100" y="115" textAnchor="middle" fontSize="12" fill={colors.textMuted}>
-              Total
-            </SvgText>
-          </Svg>
-          <View style={s.legendContainer}>
-            {categoryData.slice(0, 6).map((cat, i) => (
-              <View key={cat.name} style={s.legendItem}>
-                <View style={[s.legendDot, { backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }]} />
-                <Text style={[s.legendText, { color: colors.textSecondary }]} numberOfLines={1}>{cat.name}</Text>
-                <Text style={[s.legendValue, { color: colors.text }]}>{cat.amount.toFixed(0)}</Text>
-              </View>
-            ))}
-            {categoryData.length > 6 && (
-              <Text style={[s.legendMore, { color: colors.textMuted }]}>+{categoryData.length - 6} more</Text>
+      <Circle
+        key={cat.name}
+        cx={center}
+        cy={center}
+        r={radius}
+        fill="none"
+        stroke={CHART_COLORS[i % CHART_COLORS.length]}
+        strokeWidth={strokeW}
+        strokeDasharray={`${dashLength} ${circumference - dashLength}`}
+        strokeDashoffset={offset}
+        transform={`rotate(-90 ${center} ${center})`}
+      />
+    );
+  });
+
+  return (
+    <View style={s.chartSection}>
+      <Text style={[s.sectionTitle, { color: colors.text }]}>Spending by Category</Text>
+      <View style={[s.pieContainer, isWide && { gap: 32 }]}>
+        <Svg width={pieSize} height={pieSize} viewBox={`0 0 ${pieSize} ${pieSize}`}>
+          {donutSlices}
+          <SvgText x={center} y={center - 8} textAnchor="middle" fontSize={isWide ? 24 : 18} fontWeight="bold" fill={colors.text}>
+            {total.toFixed(0)}
+          </SvgText>
+          <SvgText x={center} y={center + 14} textAnchor="middle" fontSize={isWide ? 14 : 12} fill={colors.textMuted}>
+            Total
+          </SvgText>
+        </Svg>
+        <View style={s.legendContainer}>
+          {categoryData.slice(0, 8).map((cat, i) => (
+            <View key={cat.name} style={[s.legendItem, { borderBottomWidth: 1, borderBottomColor: colors.border, paddingBottom: 6 }]}>
+              <View style={[s.legendDot, { backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }]} />
+              <Text style={[s.legendText, { color: colors.textSecondary, fontSize: isWide ? 14 : 12 }]} numberOfLines={1}>{cat.name}</Text>
+              <Text style={[s.legendValue, { color: colors.text, fontSize: isWide ? 14 : 12 }]}>{cat.amount.toFixed(0)}</Text>
+            </View>
+          ))}
+          {categoryData.length > 8 && (
+            <Text style={[s.legendMore, { color: colors.textMuted }]}>+{categoryData.length - 8} more</Text>
+          )}
+        </View>
+      </View>
+    </View>
+  );
+};
+
+const renderBarChart = () => {
+  const maxVal = Math.max(...monthlyData.map((d) => Math.max(d.income, d.expenses)), 1);
+  const chartHeight = isWide ? 280 : 160;
+  const barWidth = isWide ? 32 : 16;
+  const gap = isWide ? 12 : 8;
+  const groupWidth = barWidth * 2 + gap;
+  const groupGap = isWide ? 40 : 20;
+  const chartWidth = Math.max(monthlyData.length * (groupWidth + groupGap) + 40, screenWidth - 60);
+
+  return (
+    <View style={s.chartSection}>
+      <Text style={[s.sectionTitle, { color: colors.text }]}>Monthly Trends</Text>
+      <View style={s.legendRow}>
+        <View style={s.legendItem}>
+          <View style={[s.legendDot, { backgroundColor: colors.income }]} />
+          <Text style={[s.legendSmall, { color: colors.textSecondary }]}>Income</Text>
+        </View>
+        <View style={s.legendItem}>
+          <View style={[s.legendDot, { backgroundColor: colors.expense }]} />
+          <Text style={[s.legendSmall, { color: colors.textSecondary }]}>Expenses</Text>
+        </View>
+      </View>
+      <Svg width={chartWidth} height={chartHeight + 40} viewBox={`0 0 ${chartWidth} ${chartHeight + 40}`}>
+        {[0, 0.25, 0.5, 0.75, 1].map((frac) => (
+          <G key={frac}>
+            <Line x1="0" y1={chartHeight * (1 - frac)} x2={chartWidth} y2={chartHeight * (1 - frac)} stroke={colors.border} strokeWidth="1" />
+            {isWide && (
+              <SvgText x={chartWidth - 5} y={chartHeight * (1 - frac) - 4} textAnchor="end" fontSize="10" fill={colors.textMuted}>
+                {(maxVal * frac).toFixed(0)}
+              </SvgText>
             )}
-          </View>
-        </View>
-      </View>
-    );
-  };
-
-  // Bar chart
-  const renderBarChart = () => {
-    const maxVal = Math.max(...monthlyData.map((d) => Math.max(d.income, d.expenses)), 1);
-    const chartHeight = 160;
-    const barWidth = 16;
-    const gap = 8;
-    const groupWidth = barWidth * 2 + gap;
-    const chartWidth = monthlyData.length * (groupWidth + 20);
-
-    return (
-      <View style={s.chartSection}>
-        <Text style={[s.sectionTitle, { color: colors.text }]}>Monthly Trends</Text>
-        <View style={s.legendRow}>
-          <View style={s.legendItem}>
-            <View style={[s.legendDot, { backgroundColor: colors.income }]} />
-            <Text style={[s.legendSmall, { color: colors.textSecondary }]}>Income</Text>
-          </View>
-          <View style={s.legendItem}>
-            <View style={[s.legendDot, { backgroundColor: colors.expense }]} />
-            <Text style={[s.legendSmall, { color: colors.textSecondary }]}>Expenses</Text>
-          </View>
-        </View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          <Svg width={Math.max(chartWidth + 20, 300)} height={chartHeight + 40} viewBox={`0 0 ${Math.max(chartWidth + 20, 300)} ${chartHeight + 40}`}>
-            {[0, 0.25, 0.5, 0.75, 1].map((frac) => (
-              <Line key={frac} x1="0" y1={chartHeight * (1 - frac)} x2={Math.max(chartWidth + 20, 300)} y2={chartHeight * (1 - frac)} stroke={colors.border} strokeWidth="1" />
-            ))}
-            {monthlyData.map((d, i) => {
-              const x = i * (groupWidth + 20) + 20;
-              const incomeHeight = (d.income / maxVal) * chartHeight;
-              const expenseHeight = (d.expenses / maxVal) * chartHeight;
-              return (
-                <G key={d.month}>
-                  <Rect x={x} y={chartHeight - incomeHeight} width={barWidth} height={Math.max(incomeHeight, 1)} rx={4} fill={colors.income} />
-                  <Rect x={x + barWidth + gap} y={chartHeight - expenseHeight} width={barWidth} height={Math.max(expenseHeight, 1)} rx={4} fill={colors.expense} />
-                  <SvgText x={x + groupWidth / 2} y={chartHeight + 20} textAnchor="middle" fontSize="11" fill={colors.textMuted}>{d.month}</SvgText>
-                </G>
-              );
-            })}
-          </Svg>
-        </ScrollView>
-      </View>
-    );
-  };
+          </G>
+        ))}
+        {monthlyData.map((d, i) => {
+          const x = i * (groupWidth + groupGap) + 30;
+          const incomeHeight = (d.income / maxVal) * chartHeight;
+          const expenseHeight = (d.expenses / maxVal) * chartHeight;
+          return (
+            <G key={d.month}>
+              <Rect x={x} y={chartHeight - incomeHeight} width={barWidth} height={Math.max(incomeHeight, 1)} rx={4} fill={colors.income} />
+              <Rect x={x + barWidth + gap} y={chartHeight - expenseHeight} width={barWidth} height={Math.max(expenseHeight, 1)} rx={4} fill={colors.expense} />
+              <SvgText x={x + groupWidth / 2} y={chartHeight + 20} textAnchor="middle" fontSize={isWide ? 13 : 11} fill={colors.textMuted}>{d.month}</SvgText>
+              {isWide && d.income > 0 && (
+                <SvgText x={x + barWidth / 2} y={chartHeight - incomeHeight - 6} textAnchor="middle" fontSize="10" fill={colors.income}>{d.income.toFixed(0)}</SvgText>
+              )}
+              {isWide && d.expenses > 0 && (
+                <SvgText x={x + barWidth + gap + barWidth / 2} y={chartHeight - expenseHeight - 6} textAnchor="middle" fontSize="10" fill={colors.expense}>{d.expenses.toFixed(0)}</SvgText>
+              )}
+            </G>
+          );
+        })}
+      </Svg>
+    </View>
+  );
+};
 
   const formatDate = (dateStr) => {
     if (!dateStr) return "";
@@ -326,8 +347,11 @@ export default function HomeScreen({ navigation }) {
       {/* Quick actions */}
       <View style={s.quickActions}>
         {[
-          { label: "Accounts", icon: "🏦", screen: "Accounts" },
+          
+          { label: "Accounts & Credit Cards", icon: "🏦", screen: "Accounts" },
           { label: "Budgets", icon: "📊", screen: "Budgets" },
+          { label: "Goals", icon: "🎯", screen: "SavingsGoals" },
+          { label: "Reports", icon: "📋", screen: "Reports" },
           { label: "Categories", icon: "🏷️", screen: "Categories" },
         ].map((item) => (
           <TouchableOpacity
@@ -398,6 +422,43 @@ export default function HomeScreen({ navigation }) {
 
       {/* Bar chart */}
       {renderBarChart()}
+
+            {/* Savings Goals */}
+      {savingsGoals.length > 0 && (
+        <View style={s.chartSection}>
+          <View style={s.sectionHeader}>
+            <Text style={[s.sectionTitle, { color: colors.text }]}>Savings Goals</Text>
+            <TouchableOpacity onPress={() => navigation.navigate("SavingsGoals")}>
+              <Text style={[s.seeAll, { color: colors.primary }]}>See all</Text>
+            </TouchableOpacity>
+          </View>
+          {savingsGoals
+            .filter((g) => (g.savedAmount || 0) < g.targetAmount)
+            .slice(0, 3)
+            .map((goal) => {
+              const percentage = Math.min(((goal.savedAmount || 0) / goal.targetAmount) * 100, 100);
+              const daysLeft = Math.max(Math.ceil((new Date(goal.targetDate) - new Date()) / (1000 * 60 * 60 * 24)), 0);
+              return (
+                <TouchableOpacity key={goal.id} style={[s.goalRow, { borderBottomColor: colors.border }]} onPress={() => navigation.navigate("SavingsGoals")}>
+                  <View style={{ flex: 1 }}>
+                    <View style={s.goalTopRow}>
+                      <Text style={[s.goalName, { color: colors.text }]}>🎯 {goal.name}</Text>
+                      <Text style={[s.goalDays, { color: daysLeft === 0 ? colors.expense : colors.textMuted }]}>
+                        {daysLeft === 0 ? "Overdue" : `${daysLeft}d left`}
+                      </Text>
+                    </View>
+                    <View style={[s.goalTrack, { backgroundColor: colors.inputBg }]}>
+                      <View style={[s.goalFill, { width: `${percentage}%`, backgroundColor: colors.primary }]} />
+                    </View>
+                    <Text style={[s.goalProgress, { color: colors.textMuted }]}>
+                      {(goal.savedAmount || 0).toFixed(0)} / {goal.targetAmount.toFixed(0)} ({Math.round(percentage)}%)
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+        </View>
+      )}
 
       {/* Recent transactions */}
       <View style={s.chartSection}>
@@ -507,23 +568,28 @@ const styles = StyleSheet.create({
   },
   quickActions: {
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: 10,
     marginBottom: 24,
+    justifyContent: "flex-start",
   },
   actionCard: {
-    flex: 1,
+    flexBasis: "31%",
+    flexGrow: 0,
+    flexShrink: 0,
     padding: 14,
     borderRadius: 12,
     borderWidth: 1,
     alignItems: "center",
     gap: 6,
-  },
+    },
   actionIcon: {
     fontSize: 24,
   },
   actionLabel: {
     fontSize: 12,
     fontWeight: "600",
+    textAlign: "center",
   },
   chartSection: {
     marginBottom: 24,
@@ -631,5 +697,35 @@ const styles = StyleSheet.create({
   recentAmount: {
     fontSize: 15,
     fontWeight: "600",
+  },
+  goalRow: {
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+  },
+  goalTopRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 6,
+  },
+  goalName: {
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  goalDays: {
+    fontSize: 12,
+  },
+  goalTrack: {
+    height: 6,
+    borderRadius: 3,
+    overflow: "hidden",
+    marginBottom: 4,
+  },
+  goalFill: {
+    height: "100%",
+    borderRadius: 3,
+  },
+  goalProgress: {
+    fontSize: 12,
   },
 });
