@@ -52,6 +52,21 @@
       return await deleteDoc(ref);
     };
 
+    export const removeDuplicateAccounts = async () => {
+    const user = auth.currentUser;
+    if (!user) return;
+
+    const existing = await getAccounts();
+    const seen = new Set();
+    for (const acc of existing) {
+      if (seen.has(acc.name)) {
+        await deleteAccount(acc.id);
+      } else {
+        seen.add(acc.name);
+      }
+    }
+  };
+
     // ============ CATEGORIES ============
 
     export const addCategory = async (category) => {

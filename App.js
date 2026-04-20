@@ -10,6 +10,7 @@
       import { SafeAreaProvider } from "react-native-safe-area-context";
       import { ThemeProvider, useTheme } from "./context/ThemeContext";
       import { requestNotificationPermission } from "./services/notificationService";
+      import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
       import NetInfo from "@react-native-community/netinfo";
 
       import LoginScreen from "./screens/LoginScreen";
@@ -68,8 +69,8 @@
               name="Home"
               component={HomeStackScreen}
               options={{
-                tabBarIcon: ({ color }) => (
-                  <Text style={{ fontSize: 20, color }}>🏠</Text>
+                tabBarIcon: ({ color, size }) => (
+                  <Ionicons name="home" size={size} color={color} />
                 ),
               }}
             />
@@ -78,8 +79,8 @@
               name="Add"
               component={AddTransactionScreen}
               options={{
-                tabBarIcon: ({ color }) => (
-                  <Text style={{ fontSize: 24, color }}>➕</Text>
+                tabBarIcon: ({ color, size }) => (
+                  <Ionicons name="add-circle" size={size + 4} color={color} />
                 ),
               }}
             />
@@ -88,8 +89,8 @@
               name="Transactions"
               component={TransactionsScreen}
               options={{
-                tabBarIcon: ({ color }) => (
-                  <Text style={{ fontSize: 20, color }}>💳</Text>
+                tabBarIcon: ({ color, size }) => (
+                  <Ionicons name="receipt-outline" size={size} color={color} />
                 ),
               }}
             />

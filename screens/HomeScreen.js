@@ -9,9 +9,10 @@ import {
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { auth } from "../config/firebase";
-import { getTransactions, getAccounts, initializeDefaultAccounts, getGoals } from "../services/firestoreService";
+import { getTransactions, getAccounts, initializeDefaultAccounts, getGoals, removeDuplicateAccounts } from "../services/firestoreService";
 import { getAllBudgetStatuses } from "../services/budgetChecker";
 import { useTheme } from "../context/ThemeContext";
+import { Ionicons, MaterialCommunityIcons, Feather } from "@expo/vector-icons";
 import Svg, { Circle, Rect, Text as SvgText, G, Line } from "react-native-svg";
 
 const CHART_COLORS = [
@@ -36,26 +37,38 @@ export default function HomeScreen({ navigation }) {
     }, [])
   );
 
-  const loadData = async () => {
-    try {
-      setLoading(true);
-      await initializeDefaultAccounts();
-      const [txData, accData, alerts, goalsData] = await Promise.all([
-        getTransactions(),
-        getAccounts(),
-        getAllBudgetStatuses(),
-        getGoals(),
-      ]);
-      setTransactions(txData);
-      setAccounts(accData);
-      setBudgetAlerts(alerts);
-      setSavingsGoals(goalsData);
-    } catch (error) {
-      console.log("Error loading dashboard:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+      const loadData = async () => {
+        try {
+          setLoading(true);
+          await initializeDefaultAccounts();
+          await removeDuplicateAccounts();
+          const [txData, accData, alerts, goalsData] = await Promise.all([
+            getTransactions(),
+            getAccounts(),
+            getAllBudgetStatuses(),
+            getGoals(),
+          ]);
+          setTransactions(txData);
+
+          // Deduplicate accounts by name
+          const uniqueAccounts = [];
+          const seen = new Set();
+          accData.forEach((acc) => {
+            if (!seen.has(acc.name)) {
+              seen.add(acc.name);
+              uniqueAccounts.push(acc);
+            }
+          });
+          setAccounts(uniqueAccounts);
+
+          setBudgetAlerts(alerts);
+          setSavingsGoals(goalsData);
+        } catch (error) {
+          console.log("Error loading dashboard:", error);
+        } finally {
+          setLoading(false);
+        }
+      };
 
   const now = new Date();
   const currentMonth = now.getMonth();
@@ -290,7 +303,7 @@ const renderBarChart = () => {
           style={[s.settingsBtn, { borderColor: colors.borderDark }]}
           onPress={() => navigation.navigate("Settings")}
         >
-          <Text style={{ fontSize: 20 }}>⚙️</Text>
+          <Ionicons name="settings-outline" size={22} color={colors.textMuted} />
         </TouchableOpacity>
       </View>
 
@@ -314,7 +327,7 @@ const renderBarChart = () => {
               ]}
               onPress={() => navigation.navigate("Budgets")}
             >
-              <Text style={[s.alertIcon]}>{alert.type === "over" ? "🚨" : "⚠️"}</Text>
+              <Ionicons name={alert.type === "over" ? "alert-circle" : "warning"} size={22} color={alert.type === "over" ? colors.expense : "#92400E"} />
               <View style={s.alertContent}>
                 <Text style={[s.alertTitle, { color: alert.type === "over" ? colors.expense : "#92400E" }]}>
                   {alert.name}
@@ -347,22 +360,24 @@ const renderBarChart = () => {
       {/* Quick actions */}
       <View style={s.quickActions}>
         {[
-          
-          { label: "Accounts & Credit Cards", icon: "🏦", screen: "Accounts" },
-          { label: "Budgets", icon: "📊", screen: "Budgets" },
-          { label: "Goals", icon: "🎯", screen: "SavingsGoals" },
-          { label: "Reports", icon: "📋", screen: "Reports" },
-          { label: "Categories", icon: "🏷️", screen: "Categories" },
-        ].map((item) => (
-          <TouchableOpacity
-            key={item.label}
-            style={[s.actionCard, { backgroundColor: colors.bgSecondary, borderColor: colors.border }]}
-            onPress={() => navigation.navigate(item.screen)}
-          >
-            <Text style={s.actionIcon}>{item.icon}</Text>
-            <Text style={[s.actionLabel, { color: colors.text }]}>{item.label}</Text>
-          </TouchableOpacity>
-        ))}
+          { label: "Accounts & Cards", iconName: "wallet-outline", lib: "Ionicons", screen: "Accounts" },
+          { label: "Budgets", iconName: "chart-pie", lib: "MaterialCommunityIcons", screen: "Budgets" },
+          { label: "Goals", iconName: "target", lib: "Feather", screen: "SavingsGoals" },
+          { label: "Reports", iconName: "file-text", lib: "Feather", screen: "Reports" },
+          { label: "Categories", iconName: "pricetag-outline", lib: "Ionicons", screen: "Categories" },
+        ].map((item) => {
+          const Icon = item.lib === "Ionicons" ? Ionicons : item.lib === "MaterialCommunityIcons" ? MaterialCommunityIcons : Feather;
+          return (
+            <TouchableOpacity
+              key={item.label}
+              style={[s.actionCard, { backgroundColor: colors.bgSecondary, borderColor: colors.border }]}
+              onPress={() => navigation.navigate(item.screen)}
+            >
+              <Icon name={item.iconName} size={26} color={colors.primary} />
+              <Text style={[s.actionLabel, { color: colors.text }]}>{item.label}</Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
 
       {/* Account balances */}
@@ -442,7 +457,10 @@ const renderBarChart = () => {
                 <TouchableOpacity key={goal.id} style={[s.goalRow, { borderBottomColor: colors.border }]} onPress={() => navigation.navigate("SavingsGoals")}>
                   <View style={{ flex: 1 }}>
                     <View style={s.goalTopRow}>
-                      <Text style={[s.goalName, { color: colors.text }]}>🎯 {goal.name}</Text>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                        <Feather name="target" size={14} color={colors.primary} />
+                        <Text style={[s.goalName, { color: colors.text }]}>{goal.name}</Text>
+                      </View>
                       <Text style={[s.goalDays, { color: daysLeft === 0 ? colors.expense : colors.textMuted }]}>
                         {daysLeft === 0 ? "Overdue" : `${daysLeft}d left`}
                       </Text>
@@ -583,9 +601,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 6,
     },
-  actionIcon: {
-    fontSize: 24,
-  },
   actionLabel: {
     fontSize: 12,
     fontWeight: "600",
