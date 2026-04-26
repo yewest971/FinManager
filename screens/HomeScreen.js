@@ -40,6 +40,7 @@ export default function HomeScreen({ navigation }) {
       const loadData = async () => {
         try {
           setLoading(true);
+          const startTime = Date.now();
           await initializeDefaultAccounts();
           await removeDuplicateAccounts();
           const [txData, accData, alerts, goalsData] = await Promise.all([
@@ -66,6 +67,8 @@ export default function HomeScreen({ navigation }) {
         } catch (error) {
           console.log("Error loading dashboard:", error);
         } finally {
+          const loadTime = Date.now() - startTime;
+          console.log(`Dashboard loaded in ${loadTime}ms`);
           setLoading(false);
         }
       };

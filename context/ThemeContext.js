@@ -33,7 +33,7 @@ export const THEMES = {
     bgSecondary: "#1C1C1E",
     text: "#F5F5F5",
     textSecondary: "#A0A0A0",
-    textMuted: "#666",
+    textMuted: "#8A8A8A",
     border: "#2C2C2E",
     borderDark: "#3A3A3C",
     card: "#1C1C1E",
