@@ -10,6 +10,7 @@ import {
   Platform,
   KeyboardAvoidingView,
 } from "react-native";
+import { useUser } from "../context/UserContext";
 import { useFocusEffect } from "@react-navigation/native";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useTheme } from "../context/ThemeContext";
@@ -29,6 +30,7 @@ const PERIOD_OPTIONS = [
 ];
 
 export default function BudgetScreen({ navigation }) {
+  const { formatAmount } = useUser();
   const { colors } = useTheme();
   const [budgets, setBudgets] = useState([]);
   const [budgetName, setBudgetName] = useState("");
@@ -166,9 +168,9 @@ export default function BudgetScreen({ navigation }) {
 
         <View style={s.budgetNumbers}>
           <Text style={[s.budgetSpent, { color: colors.textSecondary }]}>
-            Spent: <Text style={{ color: isOver ? colors.expense : colors.text }}>{spent.toFixed(2)}</Text>
+            Spent: <Text style={{ color: isOver ? colors.expense : colors.text }}>{formatAmount(spent)}</Text>
           </Text>
-          <Text style={[s.budgetLimit, { color: colors.textSecondary }]}>Limit: {item.limit.toFixed(2)}</Text>
+          <Text style={[s.budgetLimit, { color: colors.textSecondary }]}>Limit: {formatAmount(item.limit)}</Text>
         </View>
 
         <View style={[s.progressTrack, { backgroundColor: colors.inputBg }]}>
@@ -176,7 +178,7 @@ export default function BudgetScreen({ navigation }) {
         </View>
 
         {isWarning && <Text style={[s.warningText, { color: colors.warning }]}>⚠️ You've used {Math.round(percentage)}% of this budget</Text>}
-        {isOver && <Text style={[s.overText, { color: colors.expense }]}>🚨 Over budget by {(spent - item.limit).toFixed(2)}</Text>}
+        {isOver && <Text style={[s.overText, { color: colors.expense }]}>🚨 Over budget by {formatAmount(spent - item.limit)}</Text>}
       </View>
     );
   };

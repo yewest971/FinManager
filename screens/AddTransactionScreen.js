@@ -11,6 +11,7 @@
         Platform,
         Modal,
       } from "react-native";
+      import { useUser } from "../context/UserContext";
       import { addTransaction, getCategories, getAccounts, addCategory, getTransactions } from "../services/firestoreService";
       import { savePendingTransaction } from "../services/localDatabase";
       import { isOnline, syncPendingTransactions } from "../services/syncService";
@@ -21,6 +22,7 @@
 
       export default function AddTransactionScreen({ navigation }) {
         const { colors } = useTheme();
+        const { formatAmount } = useUser();
         const [note, setNote] = useState("");
         const [amount, setAmount] = useState("");
         const [type, setType] = useState(null);
@@ -122,13 +124,13 @@
               const creditUsed = Math.abs(balances[account] || 0);
               const creditAvailable = creditLimit - creditUsed;
               if (parseFloat(amount) > creditAvailable) {
-                setError(`Credit limit exceeded. Available: ${creditAvailable.toFixed(2)}`);
+                setError(`Credit limit exceeded. Available: ${formatAmount(creditAvailable)}`);
                 return;
               }
             } else {
               const accountBalance = balances[account] || 0;
               if (parseFloat(amount) > accountBalance) {
-                setError(`Insufficient balance in ${account} (${accountBalance.toFixed(2)})`);
+                setError(`Insufficient balance in ${account} (${formatAmount(accountBalance)})`);
                 return;
               }
             }
@@ -222,7 +224,15 @@
 
               {/* Amount */}
               <Text style={[st.label, { color: colors.textSecondary }]}>Amount</Text>
-              <TextInput style={[st.input, { backgroundColor: colors.inputBg, borderColor: colors.borderDark, color: colors.text }]} placeholder="0.00" placeholderTextColor={colors.textMuted} value={amount} onChangeText={setAmount} keyboardType="decimal-pad" />
+              <TextInput style={[st.input, { backgroundColor: colors.inputBg, borderColor: colors.borderDark, color: colors.text }]}
+                  placeholder="0.00" placeholderTextColor={colors.textMuted} value={amount}
+                    onChangeText={(text) => {
+                            const cleaned = text.replace(/[^0-9.]/g, "");
+                            const parts = cleaned.split(".");
+                            if (parts.length > 2) return;
+                            if (parts[1] && parts[1].length > 2) return;
+                            setAmount(cleaned);
+                          }} keyboardType="decimal-pad" />
 
               {/* Note */}
               <Text style={[st.label, { color: colors.textSecondary }]}>Note (optional)</Text>
@@ -354,8 +364,8 @@
               {account && (
                 <Text style={[st.balanceHint, { color: colors.textMuted }]}>
                   {accounts.find((a) => a.name === account)?.type === "credit"
-                    ? `Available credit: ${((accounts.find((a) => a.name === account)?.limit || 0) - Math.abs(balances[account] || 0)).toFixed(2)}`
-                    : `Available: ${(balances[account] || 0).toFixed(2)}`}
+                    ? `Available credit: ${formatAmount((accounts.find((a) => a.name === account)?.limit || 0) - Math.abs(balances[account] || 0))}`
+                    : `Available: ${formatAmount(balances[account] || 0)}`}
                 </Text>
               )}
 

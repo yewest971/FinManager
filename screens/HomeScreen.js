@@ -11,6 +11,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import { auth } from "../config/firebase";
 import { getTransactions, getAccounts, initializeDefaultAccounts, getGoals, removeDuplicateAccounts } from "../services/firestoreService";
 import { getAllBudgetStatuses } from "../services/budgetChecker";
+import { useUser } from "../context/UserContext";
 import { useTheme } from "../context/ThemeContext";
 import { Ionicons, MaterialCommunityIcons, Feather } from "@expo/vector-icons";
 import Svg, { Circle, Rect, Text as SvgText, G, Line } from "react-native-svg";
@@ -23,6 +24,7 @@ const CHART_COLORS = [
 
 export default function HomeScreen({ navigation }) {
   const { colors } = useTheme();
+  const { displayName, formatAmount } = useUser();
   const { width: screenWidth } = useWindowDimensions();
   const isWide = screenWidth > 600;
   const [transactions, setTransactions] = useState([]);
@@ -64,11 +66,11 @@ export default function HomeScreen({ navigation }) {
 
           setBudgetAlerts(alerts);
           setSavingsGoals(goalsData);
+          const loadTime = Date.now() - startTime;
+          console.log(`Dashboard loaded in ${loadTime}ms`);
         } catch (error) {
           console.log("Error loading dashboard:", error);
         } finally {
-          const loadTime = Date.now() - startTime;
-          console.log(`Dashboard loaded in ${loadTime}ms`);
           setLoading(false);
         }
       };
@@ -298,7 +300,7 @@ const renderBarChart = () => {
       <View style={s.header}>
         <View>
           <Text style={[s.greeting, { color: colors.text }]}>
-            {now.getHours() < 12 ? "Good morning" : now.getHours() < 18 ? "Good afternoon" : "Good evening"}
+            {now.getHours() < 12 ? "Good morning" : now.getHours() < 18 ? "Good afternoon" : "Good evening"}{displayName ? `, ${displayName}` : ""}
           </Text>
           <Text style={[s.email, { color: colors.textMuted }]}>{auth.currentUser?.email}</Text>
         </View>
@@ -336,7 +338,7 @@ const renderBarChart = () => {
                   {alert.name}
                 </Text>
                 <Text style={[s.alertText, { color: alert.type === "over" ? colors.expense : "#92400E" }]}>
-                  {alert.percentage}% used — {alert.spent.toFixed(2)} / {alert.limit.toFixed(2)}
+                  {alert.percentage}% used — {formatAmount(alert.spent)} / {formatAmount(alert.limit)}
                 </Text>
               </View>
             </TouchableOpacity>
@@ -348,15 +350,15 @@ const renderBarChart = () => {
       <View style={s.summaryRow}>
         <View style={[s.summaryCard, { backgroundColor: colors.incomeBg }]}>
           <Text style={[s.summaryLabel, { color: colors.textSecondary }]}>Income</Text>
-          <Text style={[s.summaryValue, { color: colors.income }]}>{totalIncome.toFixed(2)}</Text>
+          <Text style={[s.summaryValue, { color: colors.income }]}>{formatAmount(totalIncome)}</Text>
         </View>
         <View style={[s.summaryCard, { backgroundColor: colors.expenseBg }]}>
           <Text style={[s.summaryLabel, { color: colors.textSecondary }]}>Expenses</Text>
-          <Text style={[s.summaryValue, { color: colors.expense }]}>{totalExpenses.toFixed(2)}</Text>
+          <Text style={[s.summaryValue, { color: colors.expense }]}>{formatAmount(totalExpenses)}</Text>
         </View>
         <View style={[s.summaryCard, { backgroundColor: colors.balanceBg }]}>
           <Text style={[s.summaryLabel, { color: colors.textSecondary }]}>Balance</Text>
-          <Text style={[s.summaryValue, { color: colors.primary }]}>{balance.toFixed(2)}</Text>
+          <Text style={[s.summaryValue, { color: colors.primary }]}>{formatAmount(balance)}</Text>
         </View>
       </View>
 
@@ -398,7 +400,7 @@ const renderBarChart = () => {
                   <Text style={[s.accountName, { color: colors.text }]}>{acc.name}</Text>
                 </View>
                 <Text style={[s.accountBal, { color: bal >= 0 ? colors.income : colors.expense }]}>
-                  {bal.toFixed(2)}
+                  {formatAmount(bal)}
                 </Text>
               </View>
             );
@@ -427,7 +429,7 @@ const renderBarChart = () => {
                     <Text style={[s.accountName, { color: colors.text }]}>{acc.name}</Text>
                   </View>
                   <Text style={[s.accountBal, { color: colors.primary }]}>
-                    {used.toFixed(2)}/{limit.toFixed(0)} used
+                    {formatAmount(used)}/{formatAmount(limit)} used
                   </Text>
                 </View>
               );
@@ -499,7 +501,7 @@ const renderBarChart = () => {
                 <Text style={[s.recentDate, { color: colors.textMuted }]}>{formatDate(tx.date)}</Text>
               </View>
               <Text style={[s.recentAmount, { color: tx.type === "income" ? colors.income : colors.expense }]}>
-                {tx.type === "income" ? "+" : "-"}{tx.amount.toFixed(2)}
+                {tx.type === "income" ? "+" : "-"}{formatAmount(tx.amount)}
               </Text>
             </View>
           ))

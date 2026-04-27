@@ -8,6 +8,7 @@
             Platform,
             Alert,
             } from "react-native";
+            import { useUser } from "../context/UserContext";
             import { exportCSV, exportPDF } from "../services/exportService";
             import { useFocusEffect } from "@react-navigation/native";
             import DateTimePicker from "@react-native-community/datetimepicker";
@@ -23,6 +24,7 @@
             const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
             export default function ReportsScreen({ navigation }) {
+            const { formatAmount } = useUser();
             const { colors } = useTheme();
             const [transactions, setTransactions] = useState([]);
             const [categories, setCategories] = useState([]);
@@ -203,7 +205,7 @@
                             strokeDashoffset={offset} transform="rotate(-90 80 80)" />
                         );
                     })}
-                    <SvgText x="80" y="75" textAnchor="middle" fontSize="16" fontWeight="bold" fill={colors.text}>{total.toFixed(0)}</SvgText>
+                    <SvgText x="80" y="75" textAnchor="middle" fontSize="14" fontWeight="bold" fill={colors.text}>{formatAmount(total)}</SvgText>
                     <SvgText x="80" y="95" textAnchor="middle" fontSize="11" fill={colors.textMuted}>{label}</SvgText>
                     </Svg>
                     <View style={st.donutLegend}>
@@ -211,7 +213,7 @@
                         <View key={cat.name} style={st.legendItem}>
                         <View style={[st.legendDot, { backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }]} />
                         <Text style={[st.legendText, { color: colors.textSecondary }]} numberOfLines={1}>{getCategoryEmoji(cat.name)} {cat.name}</Text>
-                        <Text style={[st.legendValue, { color: colors.text }]}>{cat.amount.toFixed(0)}</Text>
+                        <Text style={[st.legendValue, { color: colors.text }]}>{formatAmount(cat.amount)}</Text>
                         <Text style={[st.legendPercent, { color: colors.textMuted }]}>{Math.round((cat.amount / total) * 100)}%</Text>
                         </View>
                     ))}
@@ -337,15 +339,15 @@
                 <View style={st.summaryGrid}>
                     <View style={[st.summaryCard, { backgroundColor: colors.incomeBg }]}>
                     <Text style={[st.summaryLabel, { color: colors.textSecondary }]}>Total Income</Text>
-                    <Text style={[st.summaryValue, { color: colors.income }]}>{totalIncome.toFixed(2)}</Text>
+                    <Text style={[st.summaryValue, { color: colors.income }]}>{formatAmount(totalIncome)}</Text>
                     </View>
                     <View style={[st.summaryCard, { backgroundColor: colors.expenseBg }]}>
                     <Text style={[st.summaryLabel, { color: colors.textSecondary }]}>Total Expenses</Text>
-                    <Text style={[st.summaryValue, { color: colors.expense }]}>{totalExpenses.toFixed(2)}</Text>
+                    <Text style={[st.summaryValue, { color: colors.expense }]}>{formatAmount(totalExpenses)}</Text>
                     </View>
                     <View style={[st.summaryCard, { backgroundColor: colors.balanceBg }]}>
                     <Text style={[st.summaryLabel, { color: colors.textSecondary }]}>Net Savings</Text>
-                    <Text style={[st.summaryValue, { color: netSavings >= 0 ? colors.income : colors.expense }]}>{netSavings.toFixed(2)}</Text>
+                    <Text style={[st.summaryValue, { color: netSavings >= 0 ? colors.income : colors.expense }]}>{formatAmount(netSavings)}</Text>
                     </View>
                     <View style={[st.summaryCard, { backgroundColor: colors.bgSecondary }]}>
                     <Text style={[st.summaryLabel, { color: colors.textSecondary }]}>Savings Rate</Text>
@@ -425,7 +427,7 @@
                             <Text style={[st.topExpenseName, { color: colors.text }]}>{getCategoryEmoji(cat.name)} {cat.name}</Text>
                             </View>
                             <View style={st.topExpenseRight}>
-                            <Text style={[st.topExpenseAmount, { color: colors.expense }]}>{cat.amount.toFixed(2)}</Text>
+                            <Text style={[st.topExpenseAmount, { color: colors.expense }]}>{formatAmount(cat.amount)}</Text>
                             <View style={[st.topExpenseBar, { backgroundColor: colors.inputBg }]}>
                                 <View style={[st.topExpenseFill, { width: `${percentage}%`, backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }]} />
                             </View>

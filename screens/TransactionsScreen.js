@@ -12,6 +12,7 @@
           KeyboardAvoidingView,
           Modal,
         } from "react-native";
+        import { useUser } from "../context/UserContext";
         import { SafeAreaView } from "react-native-safe-area-context";
         import { useFocusEffect } from "@react-navigation/native";
         import {
@@ -25,6 +26,7 @@
 
         export default function TransactionsScreen({ navigation }) {
           const { colors } = useTheme();
+          const { formatAmount } = useUser();
           const [transactions, setTransactions] = useState([]);
           const [loading, setLoading] = useState(true);
           const [editingId, setEditingId] = useState(null);
@@ -210,7 +212,7 @@
                     <Text style={[st.cardDate, { color: colors.textMuted }]}>{formatDate(item.date)}</Text>
                   </View>
                   <Text style={[st.cardAmount, { color: isTransfer ? colors.primary : isIncome ? colors.income : colors.expense }]}>
-                    {isTransfer ? "↔" : isIncome ? "+" : "-"} {item.amount.toFixed(2)}
+                    {isTransfer ? "↔" : isIncome ? "+" : "-"} {formatAmount(item.amount)}
                   </Text>
                 </View>
                 <View style={st.cardActions}>
@@ -315,15 +317,15 @@
                   <View style={st.summaryRow}>
                     <View style={[st.summaryCard, { backgroundColor: colors.incomeBg }]}>
                       <Text style={[st.summaryLabel, { color: colors.textSecondary }]}>Income</Text>
-                      <Text style={[st.summaryValue, { color: colors.income }]}>{totalIncome.toFixed(2)}</Text>
+                      <Text style={[st.summaryValue, { color: colors.income }]}>{formatAmount(totalIncome)}</Text>
                     </View>
                     <View style={[st.summaryCard, { backgroundColor: colors.expenseBg }]}>
                       <Text style={[st.summaryLabel, { color: colors.textSecondary }]}>Expenses</Text>
-                      <Text style={[st.summaryValue, { color: colors.expense }]}>{totalExpenses.toFixed(2)}</Text>
+                      <Text style={[st.summaryValue, { color: colors.expense }]}>{formatAmount(totalExpenses)}</Text>
                     </View>
                     <View style={[st.summaryCard, { backgroundColor: colors.balanceBg }]}>
                       <Text style={[st.summaryLabel, { color: colors.textSecondary }]}>Balance</Text>
-                      <Text style={[st.summaryValue, { color: colors.primary }]}>{balance.toFixed(2)}</Text>
+                      <Text style={[st.summaryValue, { color: colors.primary }]}>{formatAmount(balance)}</Text>
                     </View>
                   </View>
 
@@ -332,9 +334,7 @@
                       <Text style={[st.creditLabel, { color: colors.expense }]}>
                         💳 Credit Card Due
                       </Text>
-                      <Text style={[st.creditValue, { color: colors.expense }]}>
-                        {creditOutstanding.toFixed(2)}
-                      </Text>
+                      <Text style={[st.creditValue]}>{formatAmount(creditOutstanding)}</Text>
                     </View>
                   )}
 

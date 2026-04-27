@@ -10,6 +10,7 @@ import {
   Platform,
   KeyboardAvoidingView,
 } from "react-native";
+import { useUser } from "../context/UserContext";
 import { useFocusEffect } from "@react-navigation/native";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useTheme } from "../context/ThemeContext";
@@ -21,6 +22,7 @@ import {
 } from "../services/firestoreService";
 
 export default function SavingsGoalsScreen({ navigation }) {
+  const { formatAmount } = useUser();
   const { colors } = useTheme();
   const [goals, setGoals] = useState([]);
   const [goalName, setGoalName] = useState("");
@@ -190,16 +192,16 @@ export default function SavingsGoalsScreen({ navigation }) {
 
         <View style={s.goalNumbers}>
           <Text style={[s.goalSaved, { color: colors.text }]}>
-            {(item.savedAmount || 0).toFixed(2)}
-          </Text>
-          <Text style={[s.goalTarget, { color: colors.textMuted }]}>
-            / {item.targetAmount.toFixed(2)} ({Math.round(percentage)}%)
-          </Text>
+          {formatAmount(item.savedAmount || 0)}
+        </Text>
+        <Text style={[s.goalTarget, { color: colors.textMuted }]}>
+          / {formatAmount(item.targetAmount)} ({Math.round(percentage)}%)
+        </Text>
         </View>
 
         {!isComplete && remaining > 0 && (
           <Text style={[s.monthlySuggestion, { color: colors.textSecondary }]}>
-            Save ~{monthlyNeeded.toFixed(2)}/month to reach your goal
+            Save ~{formatAmount(monthlyNeeded)}/month to reach your goal
           </Text>
         )}
 
@@ -270,7 +272,7 @@ export default function SavingsGoalsScreen({ navigation }) {
                 <Text style={[s.summaryLabel, { color: colors.textSecondary }]}>Completed</Text>
               </View>
               <View style={s.summaryItem}>
-                <Text style={[s.summaryValue, { color: colors.primary }]}>{totalSaved.toFixed(0)}</Text>
+                <Text style={[s.summaryValue, { color: colors.primary }]}>{formatAmount(totalSaved)}</Text>
                 <Text style={[s.summaryLabel, { color: colors.textSecondary }]}>Saved</Text>
               </View>
             </View>

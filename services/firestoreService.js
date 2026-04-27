@@ -330,6 +330,41 @@ export const initializeDefaultAccounts = async () => {
         return await deleteDoc(ref);
       };
 
+      // ============ USER PROFILE ============
+
+      export const createUserProfile = async (profile) => {
+        const user = auth.currentUser;
+        if (!user) throw new Error("Not logged in");
+
+        return await addDoc(collection(db, "profiles"), {
+          ...profile,
+          userId: user.uid,
+        });
+      };
+
+      export const getUserProfile = async () => {
+        const user = auth.currentUser;
+        if (!user) throw new Error("Not logged in");
+
+        const q = query(
+          collection(db, "profiles"),
+          where("userId", "==", user.uid)
+        );
+
+        const snapshot = await getDocs(q);
+        if (snapshot.docs.length === 0) return null;
+
+        return {
+          id: snapshot.docs[0].id,
+          ...snapshot.docs[0].data(),
+        };
+      };
+
+      export const updateUserProfile = async (id, updates) => {
+        const ref = doc(db, "profiles", id);
+        return await updateDoc(ref, updates);
+      };
+
     // ============ SETTINGS ============
 
     export const getSettings = async () => {

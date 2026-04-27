@@ -11,6 +11,7 @@
       Modal,
       Platform,
     } from "react-native";
+    import { useUser } from "../context/UserContext";
     import { useFocusEffect } from "@react-navigation/native";
     import { useTheme } from "../context/ThemeContext";
     import {
@@ -33,6 +34,7 @@
 
     export default function AccountsScreen({ navigation }) {
       const { colors } = useTheme();
+      const { formatAmount } = useUser();
       const [accounts, setAccounts] = useState([]);
       const [balances, setBalances] = useState({});
       const [name, setName] = useState("");
@@ -180,16 +182,16 @@
 
         if (fromAcc && fromAcc.type === "credit") {
           const creditAvailable = (fromAcc.limit || 0) - Math.abs(fromBalance);
-          if (amount > creditAvailable) { setTransferError(`Credit limit exceeded. Available: ${creditAvailable.toFixed(2)}`); return; }
+          if (amount > creditAvailable) { setTransferError(`Credit limit exceeded. Available: ${formatAmount(creditAvailable)}`); return; }
         } else {
-          if (amount > fromBalance) { setTransferError(`Insufficient balance in ${fromAccount} (${fromBalance.toFixed(2)})`); return; }
+          if (amount > fromBalance) { setTransferError(`Insufficient balance in ${fromAccount} (${formatAmount(fromBalance)})`); return; }
         }
 
         const toAcc = accounts.find((a) => a.name === toAccount);
         if (toAcc && toAcc.type === "credit") {
           const outstanding = Math.abs(balances[toAccount] || 0);
           if (outstanding <= 0) { setTransferError(`${toAccount} has no outstanding balance to pay off`); return; }
-          if (amount > outstanding) { setTransferError(`Payment exceeds outstanding balance (${outstanding.toFixed(2)})`); return; }
+          if (amount > outstanding) { setTransferError(`Payment exceeds outstanding balance (${formatAmount(outstanding)})`); return; }
         }
 
         try {
@@ -213,8 +215,8 @@
           loadData();
 
           const successMsg = fee > 0
-            ? `Transferred ${amount.toFixed(2)} from ${fromAccount} to ${toAccount} (fee: ${fee.toFixed(2)})`
-            : `Transferred ${amount.toFixed(2)} from ${fromAccount} to ${toAccount}`;
+          ? `Transferred ${formatAmount(amount)} from ${fromAccount} to ${toAccount} (fee: ${formatAmount(fee)})`
+          : `Transferred ${formatAmount(amount)} from ${fromAccount} to ${toAccount}`;
           Platform.OS === "web" ? window.alert(successMsg) : Alert.alert("Success", successMsg);
         } catch (error) {
           Platform.OS === "web" ? window.alert("Transfer failed") : Alert.alert("Error", "Transfer failed");
@@ -286,12 +288,12 @@
               <View style={s.accountRight}>
                 {isCredit ? (
                   <>
-                    <Text style={[s.accountBalance, { color: colors.primary }]}>Limit: {creditLimit.toFixed(2)}</Text>
-                    <Text style={{ fontSize: 12, color: colors.expense }}>Used: {creditUsed.toFixed(2)}</Text>
-                    <Text style={{ fontSize: 12, color: colors.income }}>Available: {creditAvailable.toFixed(2)}</Text>
+                    <Text style={[s.accountBalance, { color: colors.primary }]}>Limit: {formatAmount(creditLimit)}</Text>
+                    <Text style={{ fontSize: 12, color: colors.expense }}>Used: {formatAmount(creditUsed)}</Text>
+                    <Text style={{ fontSize: 12, color: colors.income }}>Available: {formatAmount(creditAvailable)}</Text>
                   </>
                 ) : (
-                  <Text style={[s.accountBalance, { color: isNegative ? colors.expense : colors.income }]}>{bal.toFixed(2)}</Text>
+                  <Text style={[s.accountBalance, { color: isNegative ? colors.expense : colors.income }]}>{formatAmount(bal)}</Text>
                 )}
                 <View style={s.actionRow}>
                   <TouchableOpacity onPress={() => startEditing(item)}>
@@ -321,7 +323,7 @@
 
             <View style={[s.totalCard, { backgroundColor: colors.balanceBg }]}>
               <Text style={[s.totalLabel, { color: colors.textSecondary }]}>Total Balance</Text>
-              <Text style={[s.totalValue, { color: totalBalance >= 0 ? colors.income : colors.expense }]}>{totalBalance.toFixed(2)}</Text>
+              <Text style={[s.totalValue, { color: totalBalance >= 0 ? colors.income : colors.expense }]}>{formatAmount(totalBalance)}</Text>
             </View>
 
             <TouchableOpacity style={[s.transferButton, { backgroundColor: colors.primary }]} onPress={() => setShowTransfer(true)}>
@@ -369,7 +371,7 @@
                       {accounts.map((acc) => (
                         <TouchableOpacity key={acc.id} style={[s.modalChip, { borderColor: colors.borderDark, backgroundColor: colors.inputBg }, fromAccount === acc.name && { backgroundColor: colors.primary, borderColor: colors.primary }]} onPress={() => setFromAccount(acc.name)}>
                           <Text style={[s.modalChipText, { color: colors.textSecondary }, fromAccount === acc.name && { color: "#fff", fontWeight: "500" }]}>{acc.icon} {acc.name}</Text>
-                          <Text style={[s.modalChipBalance, { color: colors.textMuted }, fromAccount === acc.name && { color: "#ddd" }]}>{(balances[acc.name] || 0).toFixed(2)}</Text>
+                          <Text style={[s.modalChipBalance, { color: colors.textMuted }, fromAccount === acc.name && { color: "#ddd" }]}>{formatAmount(balances[acc.name] || 0)}</Text>
                         </TouchableOpacity>
                       ))}
                     </View>
