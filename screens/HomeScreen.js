@@ -13,7 +13,7 @@ import { getTransactions, getAccounts, initializeDefaultAccounts, getGoals, remo
 import { getAllBudgetStatuses } from "../services/budgetChecker";
 import { useUser } from "../context/UserContext";
 import { useTheme } from "../context/ThemeContext";
-import { Ionicons, MaterialCommunityIcons, Feather } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 import Svg, { Circle, Rect, Text as SvgText, G, Line } from "react-native-svg";
 
 const CHART_COLORS = [
@@ -308,7 +308,7 @@ const renderBarChart = () => {
           style={[s.settingsBtn, { borderColor: colors.borderDark }]}
           onPress={() => navigation.navigate("Settings")}
         >
-          <Ionicons name="settings-outline" size={22} color={colors.textMuted} />
+          <Feather name="settings" size={22} color={colors.textMuted} />
         </TouchableOpacity>
       </View>
 
@@ -332,7 +332,7 @@ const renderBarChart = () => {
               ]}
               onPress={() => navigation.navigate("Budgets")}
             >
-              <Ionicons name={alert.type === "over" ? "alert-circle" : "warning"} size={22} color={alert.type === "over" ? colors.expense : "#92400E"} />
+              <Feather name={alert.type === "over" ? "alert-circle" : "alert-triangle"} size={22} color={alert.type === "over" ? colors.expense : "#92400E"} />
               <View style={s.alertContent}>
                 <Text style={[s.alertTitle, { color: alert.type === "over" ? colors.expense : "#92400E" }]}>
                   {alert.name}
@@ -365,20 +365,20 @@ const renderBarChart = () => {
       {/* Quick actions */}
       <View style={s.quickActions}>
         {[
-          { label: "Accounts & Cards", iconName: "wallet-outline", lib: "Ionicons", screen: "Accounts" },
-          { label: "Budgets", iconName: "chart-pie", lib: "MaterialCommunityIcons", screen: "Budgets" },
+          { label: "Accounts & Cards", iconName: "credit-card", screen: "Accounts" },
+          { label: "Budgets", iconName: "pie-chart", screen: "Budgets" },
           { label: "Goals", iconName: "target", lib: "Feather", screen: "SavingsGoals" },
           { label: "Reports", iconName: "file-text", lib: "Feather", screen: "Reports" },
-          { label: "Categories", iconName: "pricetag-outline", lib: "Ionicons", screen: "Categories" },
+          { label: "Categories", iconName: "tag", lib: "Feather", screen: "Categories" },
         ].map((item) => {
-          const Icon = item.lib === "Ionicons" ? Ionicons : item.lib === "MaterialCommunityIcons" ? MaterialCommunityIcons : Feather;
+          
           return (
             <TouchableOpacity
               key={item.label}
               style={[s.actionCard, { backgroundColor: colors.bgSecondary, borderColor: colors.border }]}
               onPress={() => navigation.navigate(item.screen)}
             >
-              <Icon name={item.iconName} size={26} color={colors.primary} />
+              <Feather name={item.iconName} size={26} color={colors.primary} />
               <Text style={[s.actionLabel, { color: colors.text }]}>{item.label}</Text>
             </TouchableOpacity>
           );

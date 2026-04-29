@@ -10,12 +10,11 @@
       import { SafeAreaProvider } from "react-native-safe-area-context";
       import { ThemeProvider, useTheme } from "./context/ThemeContext";
       import { requestNotificationPermission } from "./services/notificationService";
-      import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+      import { Feather } from "@expo/vector-icons";
       import { UserProvider } from "./context/UserContext";
       import { useUser } from "./context/UserContext";
       import NetInfo from "@react-native-community/netinfo";
 
-      
       import LoginScreen from "./screens/LoginScreen";
       import SignUpScreen from "./screens/SignUpScreen";
       import HomeScreen from "./screens/HomeScreen";
@@ -27,7 +26,6 @@
       import SavingsGoalsScreen from "./screens/SavingsGoalsScreen";
       import ReportsScreen from "./screens/ReportsScreen";
       import SettingsScreen from "./screens/SettingsScreen";
-      import ProfileSetupScreen from "./screens/ProfileSetupScreen";
 
       const Stack = createNativeStackNavigator();
       const Tab = createBottomTabNavigator();
@@ -74,7 +72,7 @@
               component={HomeStackScreen}
               options={{
                 tabBarIcon: ({ color, size }) => (
-                  <Ionicons name="home" size={size} color={color} />
+                  <Feather name="home" size={size} color={color} />
                 ),
               }}
             />
@@ -84,7 +82,7 @@
               component={AddTransactionScreen}
               options={{
                 tabBarIcon: ({ color, size }) => (
-                  <Ionicons name="add-circle" size={size + 4} color={color} />
+                  <Feather name="plus-circle" size={size} color={color} />
                 ),
               }}
             />
@@ -94,7 +92,7 @@
               component={TransactionsScreen}
               options={{
                 tabBarIcon: ({ color, size }) => (
-                  <Ionicons name="receipt-outline" size={size} color={color} />
+                  <Feather name="list" size={size} color={color} />
                 ),
               }}
             />
@@ -103,52 +101,49 @@
         );
       }
 
-        function AppContent() {
-          const [user, setUser] = useState(null);
-          const [loading, setLoading] = useState(true);
-          const { profile, loadingProfile } = useUser();
+          function AppContent() {
+              const [user, setUser] = useState(null);
+              const [loading, setLoading] = useState(true);
+              const {loadingProfile} = useUser();
 
-          useEffect(() => {
-            const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-              setUser(currentUser);
-              setLoading(false);
-            });
+              useEffect(() => {
+                const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+                  setUser(currentUser);
+                  setLoading(false);
+                });
 
-            initDatabase();
+                initDatabase();
+                requestNotificationPermission();
 
-            const netUnsubscribe = NetInfo.addEventListener((state) => {
-              if (state.isConnected) {
-                syncPendingTransactions();
-              }
-            });
+                const netUnsubscribe = NetInfo.addEventListener((state) => {
+                  if (state.isConnected) {
+                    syncPendingTransactions();
+                  }
+                });
 
-            return () => {
-              unsubscribe();
-              netUnsubscribe();
-            };
-          }, []);
+                return () => {
+                  unsubscribe();
+                  netUnsubscribe();
+                };
+              }, []);
 
-          if (loading || loadingProfile) return null;
+              if (loading || loadingProfile) return null;
 
-          return (
-            <NavigationContainer>
-              <Stack.Navigator screenOptions={{ headerShown: false }}>
-                {user ? (
-                  profile ? (
-                    <Stack.Screen name="Main" component={MainTabs} />
-                  ) : (
-                    <Stack.Screen name="ProfileSetup" component={ProfileSetupScreen} />
-                  )
-                ) : (
-                  <>
-                    <Stack.Screen name="Login" component={LoginScreen} />
-                    <Stack.Screen name="SignUp" component={SignUpScreen} />
-                  </>
-                )}
-              </Stack.Navigator>
-            </NavigationContainer>
-          );
-        }
+              return (
+                <NavigationContainer>
+                  <Stack.Navigator screenOptions={{ headerShown: false }}>
+                      {user ? (
+                        <Stack.Screen name="Main" component={MainTabs} />
+                      ) : (
+                      <>
+                        <Stack.Screen name="Login" component={LoginScreen} />
+                        <Stack.Screen name="SignUp" component={SignUpScreen} />
+                      </>
+                    )}
+                  </Stack.Navigator>
+                </NavigationContainer>
+              );
+            }
 
       export default function App() {
         return (
