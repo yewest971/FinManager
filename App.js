@@ -14,6 +14,7 @@
       import { UserProvider } from "./context/UserContext";
       import { useUser } from "./context/UserContext";
       import NetInfo from "@react-native-community/netinfo";
+      import * as Font from "expo-font";
 
       import LoginScreen from "./screens/LoginScreen";
       import SignUpScreen from "./screens/SignUpScreen";
@@ -61,6 +62,7 @@
                 backgroundColor: colors.tabBar,
                 borderTopColor: colors.tabBarBorder,
               },
+              tabBarHideOnKeyboard: true,
               tabBarLabelStyle: {
                 fontSize: 11,
                 fontWeight: "500",
@@ -102,48 +104,53 @@
       }
 
           function AppContent() {
-              const [user, setUser] = useState(null);
-              const [loading, setLoading] = useState(true);
-              const {loadingProfile} = useUser();
+            const [user, setUser] = useState(null);
+            const [loading, setLoading] = useState(true);
+            const { loadingProfile } = useUser();
+            const [fontsReady, setFontsReady] = useState(false);
 
-              useEffect(() => {
-                const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-                  setUser(currentUser);
-                  setLoading(false);
-                });
+            useEffect(() => {
+              const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+                setUser(currentUser);
+                setLoading(false);
+              });
 
-                initDatabase();
-                requestNotificationPermission();
+              initDatabase();
+              requestNotificationPermission();
 
-                const netUnsubscribe = NetInfo.addEventListener((state) => {
-                  if (state.isConnected) {
-                    syncPendingTransactions();
-                  }
-                });
+              Font.loadAsync({
+                ...Feather.font,
+              }).then(() => setFontsReady(true)).catch(() => setFontsReady(true));
 
-                return () => {
-                  unsubscribe();
-                  netUnsubscribe();
-                };
-              }, []);
+              const netUnsubscribe = NetInfo.addEventListener((state) => {
+                if (state.isConnected) {
+                  syncPendingTransactions();
+                }
+              });
 
-              if (loading || loadingProfile) return null;
+              return () => {
+                unsubscribe();
+                netUnsubscribe();
+              };
+            }, []);
 
-              return (
-                <NavigationContainer>
-                  <Stack.Navigator screenOptions={{ headerShown: false }}>
-                      {user ? (
-                        <Stack.Screen name="Main" component={MainTabs} />
-                      ) : (
-                      <>
-                        <Stack.Screen name="Login" component={LoginScreen} />
-                        <Stack.Screen name="SignUp" component={SignUpScreen} />
-                      </>
-                    )}
-                  </Stack.Navigator>
-                </NavigationContainer>
-              );
-            }
+            if (loading || loadingProfile || !fontsReady) return null;
+
+            return (
+              <NavigationContainer>
+                <Stack.Navigator screenOptions={{ headerShown: false }}>
+                    {user ? (
+                      <Stack.Screen name="Main" component={MainTabs} />
+                    ) : (
+                    <>
+                      <Stack.Screen name="Login" component={LoginScreen} />
+                      <Stack.Screen name="SignUp" component={SignUpScreen} />
+                    </>
+                  )}
+                </Stack.Navigator>
+              </NavigationContainer>
+            );
+          }
 
       export default function App() {
         return (

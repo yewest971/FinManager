@@ -201,7 +201,7 @@
         };
 
         return (
-          <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.bg }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+          <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.bg }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
             <ScrollView style={[st.container, { backgroundColor: colors.bg }]} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 40 }}>
               <Text style={[st.heading, { color: colors.text }]}>Add Transaction</Text>
 
