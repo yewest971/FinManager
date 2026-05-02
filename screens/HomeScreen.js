@@ -111,7 +111,7 @@ export default function HomeScreen({ navigation }) {
 
   // Monthly trends (last 6 months)
   const monthlyData = [];
-  for (let i = 5; i >= 0; i--) {
+  for (let i = 3; i >= 0; i--) {
     const d = new Date(currentYear, currentMonth - i, 1);
     const m = d.getMonth();
     const y = d.getFullYear();
@@ -219,13 +219,31 @@ const renderPieChart = () => {
 };
 
 const renderBarChart = () => {
-  const maxVal = Math.max(...monthlyData.map((d) => Math.max(d.income, d.expenses)), 1);
-  const chartHeight = isWide ? 280 : 160;
-  const barWidth = isWide ? 32 : 16;
-  const gap = isWide ? 12 : 8;
+  // Filter to only months that have data, last 3 months + current
+  const relevantData = monthlyData
+    .filter((d) => d.income > 0 || d.expenses > 0)
+    .slice(-4); // current + 3 previous max
+
+  if (relevantData.length === 0) {
+    return (
+      <View style={s.chartSection}>
+        <Text style={[s.sectionTitle, { color: colors.text }]}>Monthly Trends</Text>
+        <Text style={[s.emptyChart, { color: colors.textMuted }]}>No transaction data yet</Text>
+      </View>
+    );
+  }
+
+  const maxVal = Math.max(...relevantData.map((d) => Math.max(d.income, d.expenses)), 1);
+  const chartHeight = isWide ? 280 : 200;
+  const barWidth = isWide ? 32 : 24;
+  const gap = isWide ? 12 : 10;
   const groupWidth = barWidth * 2 + gap;
-  const groupGap = isWide ? 40 : 20;
-  const chartWidth = Math.max(monthlyData.length * (groupWidth + groupGap) + 40, screenWidth - 60);
+  const groupGap = isWide ? 40 : 30;
+  const totalBarsWidth = relevantData.length * (groupWidth + groupGap);
+  const chartWidth = Math.max(totalBarsWidth + 60, screenWidth - 60);
+  const startX = relevantData.length === 1
+    ? (chartWidth - groupWidth) / 2
+    : 30;
 
   return (
     <View style={s.chartSection}>
@@ -240,31 +258,66 @@ const renderBarChart = () => {
           <Text style={[s.legendSmall, { color: colors.textSecondary }]}>Expenses</Text>
         </View>
       </View>
-      <Svg width={chartWidth} height={chartHeight + 40} viewBox={`0 0 ${chartWidth} ${chartHeight + 40}`}>
+      <Svg width={chartWidth} height={chartHeight + 60} viewBox={`0 0 ${chartWidth} ${chartHeight + 60}`}>
+        {/* Grid lines */}
         {[0, 0.25, 0.5, 0.75, 1].map((frac) => (
           <G key={frac}>
             <Line x1="0" y1={chartHeight * (1 - frac)} x2={chartWidth} y2={chartHeight * (1 - frac)} stroke={colors.border} strokeWidth="1" />
-            {isWide && (
-              <SvgText x={chartWidth - 5} y={chartHeight * (1 - frac) - 4} textAnchor="end" fontSize="10" fill={colors.textMuted}>
-                {(maxVal * frac).toFixed(0)}
-              </SvgText>
-            )}
+            <SvgText x={chartWidth - 5} y={chartHeight * (1 - frac) - 4} textAnchor="end" fontSize="9" fill={colors.textMuted}>
+              {(maxVal * frac).toFixed(0)}
+            </SvgText>
           </G>
         ))}
-        {monthlyData.map((d, i) => {
-          const x = i * (groupWidth + groupGap) + 30;
+
+        {/* X axis line */}
+        <Line x1="0" y1={chartHeight} x2={chartWidth} y2={chartHeight} stroke={colors.textMuted} strokeWidth="1.5" />
+
+        {/* Bars */}
+        {relevantData.map((d, i) => {
+          const x = relevantData.length === 1
+            ? startX
+            : i * (groupWidth + groupGap) + startX;
           const incomeHeight = (d.income / maxVal) * chartHeight;
           const expenseHeight = (d.expenses / maxVal) * chartHeight;
+
           return (
             <G key={d.month}>
+              {/* Income bar */}
               <Rect x={x} y={chartHeight - incomeHeight} width={barWidth} height={Math.max(incomeHeight, 1)} rx={4} fill={colors.income} />
+              {/* Expense bar */}
               <Rect x={x + barWidth + gap} y={chartHeight - expenseHeight} width={barWidth} height={Math.max(expenseHeight, 1)} rx={4} fill={colors.expense} />
-              <SvgText x={x + groupWidth / 2} y={chartHeight + 20} textAnchor="middle" fontSize={isWide ? 13 : 11} fill={colors.textMuted}>{d.month}</SvgText>
-              {isWide && d.income > 0 && (
-                <SvgText x={x + barWidth / 2} y={chartHeight - incomeHeight - 6} textAnchor="middle" fontSize="10" fill={colors.income}>{d.income.toFixed(0)}</SvgText>
+
+              {/* Month label */}
+              <SvgText x={x + groupWidth / 2} y={chartHeight + 18} textAnchor="middle" fontSize={13} fontWeight="500" fill={colors.text}>
+                {d.month}
+              </SvgText>
+
+              {/* Income value label */}
+              {d.income > 0 && (
+                <SvgText
+                  x={x + barWidth / 2}
+                  y={incomeHeight > chartHeight * 0.85 ? chartHeight - incomeHeight + 16 : chartHeight - incomeHeight - 8}
+                  textAnchor="middle"
+                  fontSize="10"
+                  fontWeight="600"
+                  fill={incomeHeight > chartHeight * 0.85 ? "#fff" : colors.text}
+                >
+                  {d.income.toFixed(0)}
+                </SvgText>
               )}
-              {isWide && d.expenses > 0 && (
-                <SvgText x={x + barWidth + gap + barWidth / 2} y={chartHeight - expenseHeight - 6} textAnchor="middle" fontSize="10" fill={colors.expense}>{d.expenses.toFixed(0)}</SvgText>
+
+              {/* Expense value label */}
+              {d.expenses > 0 && (
+                <SvgText
+                  x={x + barWidth + gap + barWidth / 2}
+                  y={expenseHeight > chartHeight * 0.85 ? chartHeight - expenseHeight + 16 : chartHeight - expenseHeight - 8}
+                  textAnchor="middle"
+                  fontSize="10"
+                  fontWeight="600"
+                  fill={expenseHeight > chartHeight * 0.85 ? "#fff" : colors.text}
+                >
+                  {d.expenses.toFixed(0)}
+                </SvgText>
               )}
             </G>
           );
@@ -332,15 +385,15 @@ const renderBarChart = () => {
               ]}
               onPress={() => navigation.navigate("Budgets")}
             >
-              <Feather name={alert.type === "over" ? "alert-circle" : "alert-triangle"} size={22} color={alert.type === "over" ? colors.expense : "#92400E"} />
-              <View style={s.alertContent}>
-                <Text style={[s.alertTitle, { color: alert.type === "over" ? colors.expense : "#92400E" }]}>
-                  {alert.name}
-                </Text>
-                <Text style={[s.alertText, { color: alert.type === "over" ? colors.expense : "#92400E" }]}>
-                  {alert.percentage}% used — {formatAmount(alert.spent)} / {formatAmount(alert.limit)}
-                </Text>
-              </View>
+            <Feather name={alert.type === "over" ? "alert-circle" : "alert-triangle"} size={22} color={alert.type === "over" ? colors.expense : colors.warning} />
+            <View style={s.alertContent}>
+              <Text style={[s.alertTitle, { color: alert.type === "over" ? colors.expense : colors.warning }]}>
+                {alert.name}
+              </Text>
+              <Text style={[s.alertText, { color: alert.type === "over" ? colors.expense : colors.warning }]}>
+                {alert.percentage}% used — {formatAmount(alert.spent)} / {formatAmount(alert.limit)}
+              </Text>
+            </View>
             </TouchableOpacity>
           ))}
         </View>

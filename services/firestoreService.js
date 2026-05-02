@@ -11,6 +11,7 @@
       serverTimestamp,
     } from "firebase/firestore";
     import { db, auth } from "../config/firebase";
+    import { cacheData, getCachedData } from "./localDatabase";
 
     // ============ TRANSACTIONS ============
 
@@ -29,17 +30,24 @@
       const user = auth.currentUser;
       if (!user) throw new Error("Not logged in");
 
-      const q = query(
-        collection(db, "transactions"),
-        where("userId", "==", user.uid),
-        orderBy("createdAt", "desc")
-      );
-
-      const snapshot = await getDocs(q);
-      return snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
+      try {
+        const q = query(
+          collection(db, "transactions"),
+          where("userId", "==", user.uid),
+          orderBy("createdAt", "desc")
+        );
+        const snapshot = await getDocs(q);
+        const data = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+        await cacheData("transactions", data);
+        return data;
+      } catch (error) {
+        console.log("Firestore fetch failed, using cache:", error.message);
+        const cached = await getCachedData("transactions");
+        return cached || [];
+      }
     };
 
     export const updateTransaction = async (id, updates) => {
@@ -83,16 +91,23 @@
       const user = auth.currentUser;
       if (!user) throw new Error("Not logged in");
 
-      const q = query(
-        collection(db, "categories"),
-        where("userId", "==", user.uid)
-      );
-
-      const snapshot = await getDocs(q);
-      return snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
+      try {
+        const q = query(
+          collection(db, "categories"),
+          where("userId", "==", user.uid)
+        );
+        const snapshot = await getDocs(q);
+        const data = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+        await cacheData("categories", data);
+        return data;
+      } catch (error) {
+        console.log("Firestore fetch failed, using cache:", error.message);
+        const cached = await getCachedData("categories");
+        return cached || [];
+      }
     };
 
     export const deleteCategory = async (id) => {
@@ -116,16 +131,23 @@
       const user = auth.currentUser;
       if (!user) throw new Error("Not logged in");
 
-      const q = query(
-        collection(db, "budgets"),
-        where("userId", "==", user.uid)
-      );
-
-      const snapshot = await getDocs(q);
-      return snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
+      try {
+        const q = query(
+          collection(db, "budgets"),
+          where("userId", "==", user.uid)
+        );
+        const snapshot = await getDocs(q);
+        const data = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+        await cacheData("budgets", data);
+        return data;
+      } catch (error) {
+        console.log("Firestore fetch failed, using cache:", error.message);
+        const cached = await getCachedData("budgets");
+        return cached || [];
+      }
     };
 
     export const updateBudget = async (id, updates) => {
@@ -160,16 +182,23 @@
       const user = auth.currentUser;
       if (!user) throw new Error("Not logged in");
 
-      const q = query(
-        collection(db, "accounts"),
-        where("userId", "==", user.uid)
-      );
-
-      const snapshot = await getDocs(q);
-      return snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
+      try {
+        const q = query(
+          collection(db, "accounts"),
+          where("userId", "==", user.uid)
+        );
+        const snapshot = await getDocs(q);
+        const data = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+        await cacheData("accounts", data);
+        return data;
+      } catch (error) {
+        console.log("Firestore fetch failed, using cache:", error.message);
+        const cached = await getCachedData("accounts");
+        return cached || [];
+      }
     };
 
     export const updateAccount = async (id, updates) => {
@@ -304,14 +333,28 @@ export const initializeDefaultAccounts = async () => {
         });
       };
 
-      export const getGoals = async () => {
-        const user = auth.currentUser;
-        if (!user) throw new Error("Not logged in");
+        export const getGoals = async () => {
+          const user = auth.currentUser;
+          if (!user) throw new Error("Not logged in");
 
-        const q = query(
-          collection(db, "goals"),
-          where("userId", "==", user.uid)
-        );
+          try {
+            const q = query(
+              collection(db, "goals"),
+              where("userId", "==", user.uid)
+            );
+            const snapshot = await getDocs(q);
+            const data = snapshot.docs.map((doc) => ({
+              id: doc.id,
+              ...doc.data(),
+            }));
+            await cacheData("goals", data);
+            return data;
+          } catch (error) {
+            console.log("Firestore fetch failed, using cache:", error.message);
+            const cached = await getCachedData("goals");
+            return cached || [];
+          }
+
 
         const snapshot = await getDocs(q);
         return snapshot.docs.map((doc) => ({

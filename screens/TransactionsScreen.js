@@ -103,11 +103,85 @@
           };
 
           const handleUpdate = async () => {
-            if (!editAmount) { Alert.alert("Error", "Please enter an amount"); return; }
+            if (!editAmount || isNaN(parseFloat(editAmount)) || parseFloat(editAmount) <= 0) {
+              if (Platform.OS === "web") {
+                window.alert("Please enter a valid amount");
+              } else {
+                Alert.alert("Error", "Please enter a valid amount");
+              }
+              return;
+            }
+
+            // Check balance if changing to expense or increasing expense amount
+            if (editType === "expense") {
+              const originalTx = transactions.find((t) => t.id === editingId);
+              const selectedAcc = accounts.find((a) => a.name === editAccount);
+
+              // Calculate current balance for the account
+              let accountBalance = 0;
+              transactions.forEach((tx) => {
+                if (tx.account !== editAccount) return;
+                if (tx.type === "income") accountBalance += tx.amount;
+                else if (tx.type === "expense") accountBalance -= tx.amount;
+                else if (tx.type === "transfer_out") accountBalance -= tx.amount;
+                else if (tx.type === "transfer_in") accountBalance += tx.amount;
+              });
+
+              // Add back the original transaction amount if it was an expense from the same account
+              if (originalTx && originalTx.type === "expense" && originalTx.account === editAccount) {
+                accountBalance += originalTx.amount;
+              }
+              // If original was income on this account, remove it since we're changing to expense
+              if (originalTx && originalTx.type === "income" && originalTx.account === editAccount) {
+                accountBalance -= originalTx.amount;
+              }
+
+              const newAmount = parseFloat(editAmount);
+
+              if (selectedAcc && selectedAcc.type === "credit") {
+                const creditLimit = selectedAcc.limit || 0;
+                const creditUsed = Math.abs(accountBalance);
+                const creditAvailable = creditLimit - creditUsed;
+                if (newAmount > creditAvailable) {
+                  const msg = `Credit limit exceeded on ${editAccount}. Available: ${creditAvailable.toFixed(2)}`;
+                  if (Platform.OS === "web") {
+                    window.alert(msg);
+                  } else {
+                    Alert.alert("Error", msg);
+                  }
+                  return;
+                }
+              } else {
+                if (newAmount > accountBalance) {
+                  const msg = `Insufficient balance in ${editAccount} (${accountBalance.toFixed(2)})`;
+                  if (Platform.OS === "web") {
+                    window.alert(msg);
+                  } else {
+                    Alert.alert("Error", msg);
+                  }
+                  return;
+                }
+              }
+            }
+
             try {
-              await updateTransaction(editingId, { title: editTitle.trim() || "No note", amount: parseFloat(editAmount), type: editType, category: editCategory, account: editAccount, date: editDate });
-              setEditingId(null); loadTransactions();
-            } catch (error) { Alert.alert("Error", "Failed to update"); }
+              await updateTransaction(editingId, {
+                title: editTitle.trim() || "No note",
+                amount: parseFloat(editAmount),
+                type: editType,
+                category: editCategory,
+                account: editAccount,
+                date: editDate,
+              });
+              setEditingId(null);
+              loadTransactions();
+            } catch (error) {
+              if (Platform.OS === "web") {
+                window.alert("Failed to update transaction");
+              } else {
+                Alert.alert("Error", "Failed to update");
+              }
+            }
           };
 
           const formatDate = (dateStr) => {
@@ -310,7 +384,7 @@
 
           return (
             <SafeAreaView style={[st.safeArea, { backgroundColor: colors.bg }]} edges={["top", "left", "right"]}>
-              <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+              <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "undefined"}>
                 <ScrollView style={[st.container, { backgroundColor: colors.bg }]} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 40 }}>
                   <Text style={[st.heading, { color: colors.text }]}>Transactions</Text>
 
@@ -401,7 +475,7 @@
 
                 {/* Filter Modal */}
                 <Modal visible={showFilters} transparent animationType="slide">
-                  <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+                  <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "undefined"}>
                     <View style={st.modalOverlay}>
                       <View style={[st.modalContent, { backgroundColor: colors.card }]}>
                         <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">

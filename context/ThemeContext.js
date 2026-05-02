@@ -24,8 +24,8 @@ export const THEMES = {
     expense: "#EF4444",
     expenseBg: "#FEF2F2",
     balanceBg: "#EEF2FF",
-    warning: "#F59E0B",
-    warningBg: "#FFF7ED",
+    warning: "#D97706",
+    warningBg: "#FEF3C7",
   },
   dark: {
     name: "dark",

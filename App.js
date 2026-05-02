@@ -2,12 +2,12 @@
       import { NavigationContainer } from "@react-navigation/native";
       import { createNativeStackNavigator } from "@react-navigation/native-stack";
       import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
-      import { Text } from "react-native";
+      import { Text, Platform } from "react-native";
       import { onAuthStateChanged } from "firebase/auth";
       import { auth } from "./config/firebase";
       import { initDatabase } from "./services/localDatabase";
       import { syncPendingTransactions } from "./services/syncService";
-      import { SafeAreaProvider } from "react-native-safe-area-context";
+      import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
       import { ThemeProvider, useTheme } from "./context/ThemeContext";
       import { requestNotificationPermission } from "./services/notificationService";
       import { Feather } from "@expo/vector-icons";
@@ -46,62 +46,64 @@
         );
       }
 
-      function MainTabs() {
-        const { colors } = useTheme();
+          function MainTabs() {
+            const { colors } = useTheme();
+            const insets = useSafeAreaInsets();
 
-        return (
-          <Tab.Navigator
-            screenOptions={{
-              headerShown: false,
-              tabBarActiveTintColor: colors.primary,
-              tabBarInactiveTintColor: colors.textMuted,
-              tabBarStyle: {
-                paddingBottom: 8,
-                paddingTop: 8,
-                height: 60,
-                backgroundColor: colors.tabBar,
-                borderTopColor: colors.tabBarBorder,
-              },
-              tabBarHideOnKeyboard: true,
-              tabBarLabelStyle: {
-                fontSize: 11,
-                fontWeight: "500",
-              },
-            }}
-          >
-            <Tab.Screen
-              name="Home"
-              component={HomeStackScreen}
-              options={{
-                tabBarIcon: ({ color, size }) => (
-                  <Feather name="home" size={size} color={color} />
-                ),
-              }}
-            />
-
-            <Tab.Screen
-              name="Add"
-              component={AddTransactionScreen}
-              options={{
-                tabBarIcon: ({ color, size }) => (
-                  <Feather name="plus-circle" size={size} color={color} />
-                ),
-              }}
-            />
-
-            <Tab.Screen
-              name="Transactions"
-              component={TransactionsScreen}
-              options={{
-                tabBarIcon: ({ color, size }) => (
-                  <Feather name="list" size={size} color={color} />
-                ),
-              }}
-            />
-
-          </Tab.Navigator>
-        );
-      }
+            return (
+              <Tab.Navigator
+                screenOptions={{
+                  headerShown: false,
+                  tabBarActiveTintColor: colors.primary,
+                  tabBarInactiveTintColor: colors.textMuted,
+                  tabBarHideOnKeyboard: true,
+                  tabBarStyle: {
+                    backgroundColor: colors.tabBar,
+                    borderTopColor: colors.tabBarBorder,
+                    height: Platform.OS === "web" ? 70 : 56 + insets.bottom,
+                    paddingBottom: Platform.OS === "web" ? 7 : insets.bottom,
+                    paddingTop: 8,
+                  },
+                  tabBarLabelStyle: {
+                    fontSize: 11,
+                    fontWeight: "500",
+                    marginBottom: 2,
+                  },
+                  tabBarIconStyle: {
+                    marginTop: 2,
+                  },
+                }}
+              >
+                <Tab.Screen
+                  name="Home"
+                  component={HomeStackScreen}
+                  options={{
+                    tabBarIcon: ({ color, size }) => (
+                      <Feather name="home" size={size} color={color} />
+                    ),
+                  }}
+                />
+                <Tab.Screen
+                  name="Add"
+                  component={AddTransactionScreen}
+                  options={{
+                    tabBarIcon: ({ color, size }) => (
+                      <Feather name="plus-circle" size={size} color={color} />
+                    ),
+                  }}
+                />
+                <Tab.Screen
+                  name="Transactions"
+                  component={TransactionsScreen}
+                  options={{
+                    tabBarIcon: ({ color, size }) => (
+                      <Feather name="list" size={size} color={color} />
+                    ),
+                  }}
+                />
+              </Tab.Navigator>
+            );
+          }
 
           function AppContent() {
             const [user, setUser] = useState(null);

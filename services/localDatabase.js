@@ -54,3 +54,35 @@ export const clearSyncedTransactions = async () => {
     console.log("Error clearing synced");
   }
 };
+
+// ============ OFFLINE CACHE ============
+
+const CACHE_KEYS = {
+  transactions: "cache_transactions",
+  accounts: "cache_accounts",
+  categories: "cache_categories",
+  budgets: "cache_budgets",
+  goals: "cache_goals",
+};
+
+export const cacheData = async (key, data) => {
+  try {
+    await AsyncStorage.setItem(CACHE_KEYS[key], JSON.stringify({
+      data,
+      timestamp: Date.now(),
+    }));
+  } catch (err) {
+    console.log("Cache write error:", err);
+  }
+};
+
+export const getCachedData = async (key) => {
+  try {
+    const raw = await AsyncStorage.getItem(CACHE_KEYS[key]);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed.data;
+  } catch {
+    return null;
+  }
+};

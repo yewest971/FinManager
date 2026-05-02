@@ -8,6 +8,9 @@
     @font-face { font-family: 'Feather'; src: url('/fonts/Feather.ttf') format('truetype'); font-display: block; }
     #root { display: flex; flex: 1; min-height: 100vh; min-height: 100dvh; }
     html, body { height: 100%; margin: 0; padding: 0; }
+    @supports (padding-bottom: env(safe-area-inset-bottom)) {
+    #root { padding-bottom: env(safe-area-inset-bottom); }
+      }
   </style>
 </head>
 <body>
