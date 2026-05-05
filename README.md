@@ -1,7 +1,6 @@
 # FinManager — Personal Finance Management Application
 
-A cross-platform personal finance management application built with React Native, Expo, and Firebase. Developed as part of the SEC 6201 Undergraduate Project at the University of Bolton — Ras Al Khaimah Academic Centre.
-
+A cross-platform personal finance management application built with React Native, Expo, and Firebase. Developed as part of the SEC 6201 Undergraduate Project
 ## Live Demo & Downloads
 
 - **Web App:** [fin-manager-00000.netlify.app](https://fin-manager-00000.netlify.app/)
