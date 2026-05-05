@@ -4,8 +4,8 @@ A cross-platform personal finance management application built with React Native
 
 ## Live Demo & Downloads
 
-- **Web App:** [fin-manager-2739.netlify.app](https://fin-manager-2739.netlify.app)
-- **Android APK:** [Download from Expo](https://expo.dev/accounts/wew788/projects/finmanager/builds/909bc144-f30f-47c5-9047-f7b01a663fdc)
+- **Web App:** [fin-manager-00000.netlify.app](https://fin-manager-00000.netlify.app/)
+- **Android APK:** [Download from Expo](https://expo.dev/accounts/wew788/projects/finmanager/builds/f87c5dc5-927c-449b-94fc-621bba1830e8)
 - **iOS:** Available via Expo Go (scan QR code from `npx expo start`)
 
 ## Tech Stack
