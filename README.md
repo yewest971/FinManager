@@ -179,7 +179,7 @@ Firebase config is in `config/firebase.js`. To use your own Firebase project, re
 
 ## Author
 
-**Raheel Ali** — BEng (Hons) Software Engineering, University of Bolton — Ras Al Khaimah Academic Centre
+**Raheel Ali** 
 
 ## License
 
