@@ -43,7 +43,7 @@
       const isDark = colors.name === "dark";
 
       return (
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined }>
           <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
             {/* Hero section */}
             <View style={[s.hero, { backgroundColor: "#6C63FF" }]}>
